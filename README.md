@@ -30,12 +30,15 @@ As três primeiras (`nfe`, `documentos`, `duplicados`) têm `testes.html` — ab
 
 ## Publicar
 
-`py ferramentas/publicar.py` monta `site/` (landing + amostras + imagens, sem testes nem
-ferramentas). Essa pasta é o que vai para o Cloudflare Pages:
+O site vai para o GitHub Pages pelo repositório público `gabrielbr619/hightide-site` (o Pages
+gratuito não serve repositório privado). Um comando monta `site/` (landing + amostras + imagens,
+sem testes nem ferramentas), copia para o clone `../hightide-site`, faz o commit e o push:
 
 ```
-npx wrangler pages deploy site --project-name hightide-home
+py ferramentas/publicar-pages.py "mensagem do commit"
 ```
+
+`py ferramentas/publicar.py` sozinho só monta `site/`, sem publicar.
 
 `ferramentas/empacotar.py` e `ferramentas/empacotar-demos.py` geram `dist/` — versões em
 arquivo único, com imagens e scripts embutidos, para publicar como Artifact.
