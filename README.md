@@ -30,15 +30,9 @@ As três primeiras (`nfe`, `documentos`, `duplicados`) têm `testes.html` — ab
 
 ## Publicar
 
-O site vai para o GitHub Pages pelo repositório público `gabrielbr619/hightide-site` (o Pages
-gratuito não serve repositório privado). Um comando monta `site/` (landing + amostras + imagens,
-sem testes nem ferramentas), copia para o clone `../hightide-site`, faz o commit e o push:
-
-```
-py ferramentas/publicar-pages.py "mensagem do commit"
-```
-
-`py ferramentas/publicar.py` sozinho só monta `site/`, sem publicar.
+O GitHub Pages serve a raiz deste repositório na branch `main`, com o domínio `hightide.site`
+ligado nas configurações do Pages. Push na `main` é deploy — em um ou dois minutos o site atualiza.
+O `.nojekyll` na raiz impede o Pages de ignorar pastas com underscore (`demos/_modelo`).
 
 `ferramentas/empacotar.py` e `ferramentas/empacotar-demos.py` geram `dist/` — versões em
 arquivo único, com imagens e scripts embutidos, para publicar como Artifact.

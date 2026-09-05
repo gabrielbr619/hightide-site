@@ -1,6 +1,5 @@
-# saídas geradas: dist/ é o build para Artifact, site/ é a pasta publicada no Cloudflare Pages
+# saída gerada: dist/ é o build em arquivo único para Artifact
 dist/
-site/
 
 # rastro de ferramentas locais
 node_modules/
