@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<title>Conciliador bancário — High Tide</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Extrato do banco de um lado, lançamentos do sistema do outro: o que bate, o que falta e o que sobra, com o CSV das pendências. Tudo lido no seu navegador — nada é enviado.">
+<link rel="icon" type="image/png" href="../../telas/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,600..800&family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../comum/base.css">
+
+<style>
+  .dupla { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; }
+  /* a linha do exemplo ganha faixa própria: solta no grid ela ficaria presa na coluna de 7fr */
+  .abertura { grid-template-areas: "texto aside" "solta solta" "exemplo exemplo"; }
+  .abertura .dupla { grid-area: solta; }
+  .dupla .solta { grid-area: auto; margin-top: 0; height: 100%; padding: 2.4rem 1.4rem 1.9rem; }
+  .dupla .solta > svg { width: 42px; height: 42px; }
+  .dupla .solta h2 { font-size: 1.15rem; }
+  .dupla .solta .aceita { margin-top: .8rem; }
+  .lado-rotulo { display: block; margin-bottom: .2rem; font: 600 .7rem/1.3 "JetBrains Mono", monospace; letter-spacing: .07em; text-transform: uppercase; color: var(--tinta-mid); }
+  .solta .arquivo { margin-top: 1rem; font-size: .9rem; color: var(--ciano); }
+  .solta .arquivo b { color: var(--tinta); font-weight: 600; }
+  .solta .arquivo button { margin-left: .6rem; background: none; border: 0; padding: 0; color: var(--tinta-mid); font-size: .85rem; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+  .solta .arquivo button:hover { color: var(--coral); }
+  .exemplo-linha { grid-area: exemplo; margin-top: 0; padding-top: 1.4rem; border-top: 1px solid var(--linha); display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: .6rem 1.2rem; color: var(--tinta-mid); font-size: .98rem; }
+
+  .regua [data-faixa="certo"]     { --cor: var(--ciano); }
+  .regua [data-faixa="provavel"]  { --cor: var(--sol); }
+  .regua [data-faixa="divergente"]{ --cor: var(--coral); }
+  .regua [data-faixa="soBanco"]   { --cor: var(--azul); }
+  .regua [data-faixa="soSistema"] { --cor: var(--linha-forte); }
+
+  .filtros { margin: 2.6rem 0 0; }
+  .tag.banco { color: var(--azul); }
+  .tag.sistema { color: var(--tinta-mid); }
+  td.seta { width: 2rem; text-align: center; color: var(--tinta-mid); }
+  td.lado b { display: block; font-weight: 500; }
+  td.lado span.num { font-variant-numeric: tabular-nums; color: var(--tinta-mid); font-size: .88rem; }
+  td.lado .vazio { color: var(--tinta-mid); }
+  td.titulo .num { font-weight: 600; font-variant-numeric: tabular-nums; }
+  .kpi b.fora { color: var(--coral); }
+  td.motivo { color: var(--tinta-mid); font-size: .88rem; }
+  .mapa__corpo p { font-size: .82rem; color: var(--tinta-mid); }
+  .mapa__grade .lado-rotulo { grid-column: 1 / -1; margin-bottom: 0; }
+  .mapa .escolhas { display: flex; flex-wrap: wrap; gap: 1rem 1.8rem; align-items: center; padding-top: .9rem; border-top: 1px solid var(--linha); }
+  .mapa .escolhas label { display: flex; align-items: center; gap: .45rem; font-size: .84rem; color: var(--tinta-mid); }
+  .mapa .escolhas input[type="range"] { width: 9rem; }
+  .mapa .escolhas input[type="checkbox"] { width: auto; }
+  .mapa .escolhas b { color: var(--tinta); font-weight: 600; }
+
+  @media (max-width: 900px) {
+    .dupla { grid-template-columns: 1fr; }
+    .abertura { grid-template-areas: "texto" "solta" "exemplo" "aside"; }
+  }
+  @media (max-width: 640px) {
+    table:not(.fixa) td.seta { display: none; }
+    table:not(.fixa) td.lado { grid-column: 1 / -1; }
+  }
+</style>
+
+<body data-demo="conciliador">
+
+<header>
+  <div class="env barra">
+    <a class="marca" href="https://hightide.site/" aria-label="High Tide, voltar ao site">
+      <img class="so-escuro" src="../../telas/logo-escura.webp" width="524" height="120" alt="High Tide">
+      <img class="so-claro" src="../../telas/logo-clara.webp" width="524" height="120" alt="" aria-hidden="true">
+      <small>Conciliador bancário</small>
+    </a>
+    <nav>
+      <a class="item" href="https://hightide.site/">Voltar ao site</a>
+      <button class="tema" id="tema" type="button" aria-label="Alternar tema claro e escuro">
+        <svg class="sol" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4"/></svg>
+        <svg class="lua" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z"/></svg>
+      </button>
+      <a class="btn" href="https://hightide.site/#orcamento">Pedir orçamento</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section class="abertura env" id="abertura">
+    <div class="abertura__grade">
+    <div class="abertura__texto">
+    <h1>Extrato de um lado, lançamentos do outro.</h1>
+    <p class="lead">Solte o OFX do banco e a planilha do sistema. Sai o que bate, o que o banco cobrou e ninguém lançou, e o que está lançado mas nunca caiu na conta.</p>
+    <p class="local">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+      <span><b>Nada sai do seu navegador.</b> Os arquivos são lidos aqui, na sua máquina, e não são enviados a servidor nenhum — nem ao nosso.</span>
+    </p>
+    </div>
+    <aside class="entra-sai" aria-label="O que entra e o que sai">
+      <div class="entra"><span class="rotulo">Entra</span><ul>
+        <li>O extrato do mês em OFX, CSV ou XLSX</li>
+        <li>Os lançamentos do sistema em CSV ou XLSX</li>
+        <li>Sem cadastro e sem enviar nada</li>
+      </ul></div>
+      <span class="seta" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v16M6 14l6 6 6-6"/></svg></span>
+      <div class="sai"><span class="rotulo">Sai</span><ul>
+        <li>O que bateu, o que provavelmente bate e o que divergiu</li>
+        <li>A lista do que só existe de um lado</li>
+        <li>CSV das pendências, pronto para o Excel</li>
+      </ul></div>
+    </aside>
+    </div>
+
+    <div class="dupla" id="solta">
+      <div class="solta" id="solta-banco" tabindex="0" role="button" aria-label="Área para soltar o extrato do banco">
+        <span class="lado-rotulo">Lado 1</span>
+        <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M6 18 24 8l18 10v3H6Z"/><path d="M11 21v14M19 21v14M29 21v14M37 21v14M6 39h36"/>
+        </svg>
+        <h2><span class="so-mouse">Solte aqui o extrato do banco</span><span class="so-toque">Toque para escolher o extrato</span></h2>
+        <p class="ou so-mouse">ou <button type="button" id="escolher-banco">escolher o arquivo</button></p>
+        <p class="aceita">OFX (o mesmo que o internet banking exporta para o contador), CSV ou XLSX.</p>
+        <p class="andamento" id="andamento-banco" hidden></p>
+        <p class="arquivo" id="arquivo-banco" hidden></p>
+        <input type="file" id="entrada-banco" accept=".ofx,.qfx,.csv,.txt,.tsv,.xlsx,.xls" hidden>
+      </div>
+
+      <div class="solta" id="solta-sistema" tabindex="0" role="button" aria-label="Área para soltar os lançamentos do sistema">
+        <span class="lado-rotulo">Lado 2</span>
+        <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="7" y="8" width="34" height="32" rx="3"/><path d="M7 18h34M18 18v22M7 29h34"/>
+        </svg>
+        <h2><span class="so-mouse">Solte aqui os lançamentos do sistema</span><span class="so-toque">Toque para escolher os lançamentos</span></h2>
+        <p class="ou so-mouse">ou <button type="button" id="escolher-sistema">escolher o arquivo</button></p>
+        <p class="aceita">CSV ou XLSX do contas a pagar e receber, do razão ou do caixa.</p>
+        <p class="andamento" id="andamento-sistema" hidden></p>
+        <p class="arquivo" id="arquivo-sistema" hidden></p>
+        <input type="file" id="entrada-sistema" accept=".csv,.txt,.tsv,.xlsx,.xls" hidden>
+      </div>
+    </div>
+
+    <div class="exemplo-linha">
+      <span>Não tem os dois arquivos à mão?</span>
+      <button class="btn discreto" type="button" id="exemplo">Ver com um mês de exemplo</button>
+    </div>
+  </section>
+
+  <section class="resultado env" id="resultado" hidden>
+    <div class="lida">
+      <div class="avisos" id="lida"></div>
+      <button class="btn discreto" type="button" id="outra">Trocar os arquivos</button>
+    </div>
+
+    <div id="numeros">
+      <div class="painel">
+        <h2 class="resumo" id="resumo"></h2>
+        <div class="regua" id="regua" aria-label="Como os lançamentos se dividem">
+          <div class="regua__barra" id="regua-barra"></div>
+          <div class="regua__legenda" id="regua-legenda"></div>
+        </div>
+      </div>
+
+      <div class="kpis" id="kpis"></div>
+    </div>
+
+    <!-- fora do #corpo de propósito: sem lançamento lido, é aqui que se conserta o arquivo -->
+    <details class="mapa" id="mapa">
+      <summary><b>Conferindo com <span id="mapa-resumo"></span></b><span></span></summary>
+      <div class="mapa__corpo">
+        <div class="escolhas">
+          <label for="tolerancia">Aceitar diferença de até <b id="tolerancia-valor">3 dias</b>
+            <input type="range" id="tolerancia" min="0" max="10" step="1" value="3"></label>
+          <label><input type="checkbox" id="inverter-banco"> Inverter o sinal do extrato</label>
+          <label><input type="checkbox" id="inverter-sistema"> Inverter o sinal do sistema</label>
+        </div>
+        <div id="mapa-colunas"></div>
+        <p>Se o seu arquivo usa outra coluna para data, valor ou histórico, troque aqui — a conciliação refaz na hora.</p>
+      </div>
+    </details>
+
+    <div id="corpo">
+      <div class="filtros" id="filtros" role="group" aria-label="Filtrar por situação"></div>
+
+      <div class="ferramentas">
+        <label class="busca">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <input type="search" id="busca" placeholder="Filtrar por histórico, documento ou valor" aria-label="Filtrar a tabela">
+        </label>
+        <div class="exportar">
+          <button class="btn discreto" type="button" id="baixar-pendencias">Baixar pendências</button>
+          <button class="btn discreto" type="button" id="baixar-completo">Baixar conciliação</button>
+          <button class="btn discreto" type="button" id="copiar">Copiar tabela</button>
+          <span class="copiado" id="copiado" hidden></span>
+        </div>
+      </div>
+
+      <div class="rolagem">
+        <table id="tabela">
+          <thead>
+            <tr>
+              <th>Data</th>
+              <th>Extrato do banco</th>
+              <th aria-label="Cruzamento"></th>
+              <th>Lançamento do sistema</th>
+              <th>Situação</th>
+              <th>Motivo</th>
+            </tr>
+          </thead>
+          <tbody id="linhas"></tbody>
+          <tfoot><tr><td colspan="4" id="rodape-nota"></td><td colspan="2" class="num" id="rodape-total"></td></tr></tfoot>
+        </table>
+      </div>
+    </div>
+
+    <div class="aviso-vazio" id="vazio" hidden></div>
+
+    <div class="fecho"><div class="fecho__grade">
+      <div>
+      <h2>Quer isso rodando toda semana, sozinho, com os seus dados?</h2>
+      <p>Esta é uma amostra. Na sua empresa, a rotina puxa o extrato pelo Open Finance ou pelo arquivo do banco, concilia com o ERP e deixa só as pendências na mesa de quem decide — sem ninguém abrir planilha.</p>
+      <a class="btn" href="https://hightide.site/#orcamento">Conversar com a High Tide</a>
+      </div>
+      <aside class="outras" id="outras" aria-label="Outras amostras"></aside>
+    </div></div>
+  </section>
+</main>
+
+<footer>
+  <div class="env rodape">
+    <span class="marca">
+      <img class="so-escuro" src="../../telas/logo-escura.webp" width="524" height="120" alt="High Tide">
+      <img class="so-claro" src="../../telas/logo-clara.webp" width="524" height="120" alt="" aria-hidden="true">
+    </span>
+    <span>© 2026 High Tide · hightide.site</span>
+  </div>
+</footer>
+
+<script src="../comum/comum.js"></script>
+<script src="../comum/chrome.js"></script>
+<script src="nucleo.js"></script>
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var esc = COMUM.esc, plural = COMUM.plural;
+  var hoje = COMUM.hojeISO();
+
+  var CAMPOS = ['data', 'valor', 'debito', 'credito', 'tipo', 'descricao', 'documento'];
+  var NOME_CAMPO = {
+    data: 'Data', valor: 'Valor', debito: 'Débito', credito: 'Crédito',
+    tipo: 'Tipo (D/C)', descricao: 'Histórico', documento: 'Documento'
+  };
+  var SITUACOES = [
+    { chave: 'tudo', rotulo: 'Tudo' },
+    { chave: 'certo', rotulo: 'Conciliado' },
+    { chave: 'provavel', rotulo: 'Provável' },
+    { chave: 'divergente', rotulo: 'Divergente' },
+    { chave: 'soBanco', rotulo: 'Só no banco' },
+    { chave: 'soSistema', rotulo: 'Só no sistema' }
+  ];
+  var FAIXAS = [
+    { chave: 'certo', rotulo: 'Conciliado' },
+    { chave: 'provavel', rotulo: 'Provável' },
+    { chave: 'divergente', rotulo: 'Divergente' },
+    { chave: 'soBanco', rotulo: 'Só no banco' },
+    { chave: 'soSistema', rotulo: 'Só no sistema' }
+  ];
+
+  var estado = { banco: null, sistema: null, resultado: null, situacao: 'tudo', filtro: '' };
+
+  var reais = CONC.reais;
+
+  /* ---------- entrada ---------- */
+
+  function avisarLado(lado, msg, erro) {
+    var el = $('andamento-' + lado);
+    el.hidden = !msg;
+    el.className = 'andamento' + (erro ? ' erro' : '');
+    el.textContent = msg || '';
+  }
+
+  function mostrarArquivo(lado) {
+    var dados = estado[lado], el = $('arquivo-' + lado);
+    if (!dados) { el.hidden = true; el.innerHTML = ''; return; }
+    var quantos = dados.origem === 'ofx' ? dados.lancamentos.length : dados.linhas.length;
+    el.hidden = false;
+    el.innerHTML = '<b>' + esc(dados.nome) + '</b> · ' + esc(plural(quantos, 'lançamento', 'lançamentos')) +
+      '<button type="button" data-trocar="' + lado + '">trocar</button>';
+  }
+
+  function guardarTabela(lado, nome, cabecalho, linhas) {
+    estado[lado] = {
+      nome: nome, origem: 'tabela', cabecalho: cabecalho, linhas: linhas,
+      mapa: CONC.detectarColunas(cabecalho, linhas), inverter: false
+    };
+  }
+
+  function guardarOFX(lado, nome, lancamentos) {
+    estado[lado] = { nome: nome, origem: 'ofx', lancamentos: lancamentos, inverter: false };
+  }
+
+  function receber(lado, file) {
+    var nome = file.name || '';
+    avisarLado(lado, 'Lendo ' + nome + '…');
+    var promessa;
+    if (/\.(ofx|qfx)$/i.test(nome)) {
+      promessa = file.arrayBuffer().then(function (buf) {
+        var lista = CONC.lerOFX(COMUM.decodificar(new Uint8Array(buf)));
+        if (!lista.length) throw new Error('não achei lançamentos nesse OFX');
+        guardarOFX(lado, nome, lista);
+      });
+    } else {
+      promessa = HT.lerTabela(file).then(function (t) {
+        guardarTabela(lado, t.nome, t.cabecalho, t.linhas);
+      });
+    }
+    promessa.then(function () {
+      avisarLado(lado, '');
+      mostrarArquivo(lado);
+      if (estado.banco && estado.sistema) recalcular(true);
+    }, function (e) {
+      avisarLado(lado, 'Não deu para ler: ' + (e && e.message ? e.message : e), true);
+    });
+  }
+
+  ['banco', 'sistema'].forEach(function (lado) {
+    var area = $('solta-' + lado);
+    HT.soltar({
+      area: area,
+      entrada: $('entrada-' + lado),
+      aoReceber: function (files) { receber(lado, files[0]); }
+    });
+    $('escolher-' + lado).addEventListener('click', function () { $('entrada-' + lado).click(); });
+    area.addEventListener('click', function (e) {
+      var alvo = e.target.closest('button[data-trocar]');
+      if (!alvo) return;
+      estado[alvo.dataset.trocar] = null;
+      mostrarArquivo(alvo.dataset.trocar);
+      $('entrada-' + alvo.dataset.trocar).click();
+    });
+  });
+
+  $('exemplo').addEventListener('click', function () {
+    var ex = CONC.exemplo(hoje);
+    var tabela = COMUM.lerCSV(ex.sistema.texto);
+    guardarOFX('banco', ex.banco.nome, CONC.lerOFX(ex.banco.texto));
+    guardarTabela('sistema', ex.sistema.nome, tabela.cabecalho, tabela.linhas);
+    avisarLado('banco', '');
+    avisarLado('sistema', '');
+    mostrarArquivo('banco');
+    mostrarArquivo('sistema');
+    recalcular(true);
+  });
+
+  $('outra').addEventListener('click', function () {
+    $('busca').value = '';
+    estado.filtro = '';
+    estado.situacao = 'tudo';
+    renderFiltros();
+    HT.voltar();
+  });
+
+  /* ---------- cálculo ---------- */
+
+  function lancamentosDe(lado) {
+    var dados = estado[lado];
+    if (!dados) return [];
+    if (dados.origem === 'ofx') {
+      var lista = dados.lancamentos.map(function (l) {
+        return {
+          data: l.data, valor: dados.inverter ? -l.valor : l.valor,
+          descricao: l.descricao, documento: l.documento, id: l.id
+        };
+      });
+      lista.ignoradas = 0;
+      return lista;
+    }
+    var mapa = { inverter: dados.inverter };
+    CAMPOS.forEach(function (c) { mapa[c] = dados.mapa[c]; });
+    return CONC.lerTabela(dados.cabecalho, dados.linhas, mapa);
+  }
+
+  function recalcular(arquivoNovo) {
+    var banco = lancamentosDe('banco'), sistema = lancamentosDe('sistema');
+    estado.resultado = CONC.conciliar(banco, sistema, {
+      toleranciaDias: Number($('tolerancia').value),
+      hoje: hoje
+    });
+    estado.banco.lidos = banco;
+    estado.sistema.lidos = sistema;
+    render(arquivoNovo);
+  }
+
+  /* ---------- render ---------- */
+
+  function periodo(lista) {
+    var datas = lista.filter(function (d) { return d; }).sort();
+    if (!datas.length) return '';
+    var de = COMUM.formatarData(datas[0]), ate = COMUM.formatarData(datas[datas.length - 1]);
+    return de === ate ? de : de + ' a ' + ate;
+  }
+
+  function renderLida() {
+    var banco = estado.banco.lidos, sistema = estado.sistema.lidos;
+    var todas = banco.concat(sistema).map(function (l) { return l.data; });
+    var fora = (banco.ignoradas || 0) + (sistema.ignoradas || 0);
+    $('lida').innerHTML = '<span><b>' + esc(estado.banco.nome) + '</b> · ' +
+      esc(plural(banco.length, 'lançamento', 'lançamentos')) + '</span>' +
+      '<span><b>' + esc(estado.sistema.nome) + '</b> · ' +
+      esc(plural(sistema.length, 'lançamento', 'lançamentos')) + '</span>' +
+      '<span>' + esc(periodo(todas) || 'sem datas') + '</span>' +
+      (fora ? '<span>' + esc(plural(fora, 'linha sem valor foi ignorada',
+        'linhas sem valor foram ignoradas')) + '</span>' : '');
+  }
+
+  function renderResumo() {
+    var r = estado.resultado.resumo;
+    var pendentes = r.soBanco.n + r.soSistema.n + r.divergentes.n;
+    var total = r.conciliados.n + r.provaveis.n + pendentes;
+    var pct = total ? Math.round((r.conciliados.n + r.provaveis.n) / total * 100) : 0;
+    $('resumo').innerHTML = '<span class="valor">' + esc(pct + '%') + '</span> conciliado.' +
+      '<small>' + esc(pendentes ? plural(pendentes, 'lançamento precisa de olho humano', 'lançamentos precisam de olho humano') +
+        ' — a diferença entre os dois saldos é de ' + reais(r.diferenca) + '.'
+        : 'Os dois lados fecham: nada sobrando.') + '</small>';
+
+    var valores = CONC.volumes(estado.resultado);
+    var contas = {
+      certo: r.conciliados.n, provavel: r.provaveis.n, divergente: r.divergentes.n,
+      soBanco: r.soBanco.n, soSistema: r.soSistema.n
+    };
+    var soma = FAIXAS.reduce(function (s, f) { return s + valores[f.chave]; }, 0) || 1;
+    $('regua-barra').innerHTML = FAIXAS.filter(function (f) { return valores[f.chave] > 0; }).map(function (f, i) {
+      return '<i data-faixa="' + esc(f.chave) + '" style="flex-basis:' + (valores[f.chave] / soma * 100).toFixed(2) +
+        '%;animation-delay:' + (i * 90) + 'ms" title="' + esc(f.rotulo + ': ' + reais(valores[f.chave])) + '"></i>';
+    }).join('');
+    $('regua-legenda').innerHTML = FAIXAS.filter(function (f) { return contas[f.chave] > 0; }).map(function (f) {
+      return '<div data-faixa="' + esc(f.chave) + '">' + esc(f.rotulo) + '<b>' + esc(reais(valores[f.chave])) +
+        '</b><small>' + esc(plural(contas[f.chave], 'lançamento', 'lançamentos')) + '</small></div>';
+    }).join('');
+  }
+
+  /* a régua ao lado já conta cada situação: aqui vai o que ela não diz — o dinheiro dos dois lados */
+  function renderKpis() {
+    var r = estado.resultado.resumo;
+    var v = CONC.volumes(estado.resultado);
+    var pendentes = r.soBanco.n + r.soSistema.n + r.divergentes.n;
+    var lista = [
+      ['Saldo do extrato', reais(r.saldoBanco), 'o que entrou menos o que saiu na conta', ''],
+      ['Saldo do sistema', reais(r.saldoSistema), 'a mesma soma nos lançamentos', ''],
+      ['Diferença', reais(r.diferenca), 'extrato menos sistema', r.diferenca ? 'fora' : ''],
+      ['Pendências', String(pendentes), reais(v.soBanco + v.soSistema + v.divergente) + ' para conferir', '']
+    ];
+    $('kpis').innerHTML = lista.map(function (k) {
+      return '<div class="kpi">' + esc(k[0]) + '<b' + (k[3] ? ' class="' + esc(k[3]) + '"' : '') + '>' +
+        esc(k[1]) + '</b><small>' + esc(k[2]) + '</small></div>';
+    }).join('');
+  }
+
+  function renderTolerancia() {
+    var dias = Number($('tolerancia').value);
+    $('mapa-resumo').textContent = plural(dias, 'dia', 'dias') + ' de folga na data';
+    $('tolerancia-valor').textContent = plural(dias, 'dia', 'dias');
+    ['banco', 'sistema'].forEach(function (lado) {
+      var dados = estado[lado];
+      $('inverter-' + lado).checked = !!(dados && dados.inverter);
+    });
+  }
+
+  /* só quando o arquivo muda: refazer o <select> no change tiraria o foco de quem acabou de usá-lo */
+  function renderColunas() {
+    var partes = [];
+    ['banco', 'sistema'].forEach(function (lado) {
+      var dados = estado[lado];
+      if (!dados || dados.origem !== 'tabela') return;
+      partes.push('<div class="mapa__grade"><span class="lado-rotulo">' +
+        esc(lado === 'banco' ? 'Colunas do extrato' : 'Colunas do sistema') + '</span>' +
+        CAMPOS.map(function (campo) {
+          var opcoes = ['<option value="-1">— nenhuma —</option>'].concat(dados.cabecalho.map(function (nome, i) {
+            return '<option value="' + i + '"' + (dados.mapa[campo] === i ? ' selected' : '') + '>' +
+              esc(nome || ('coluna ' + (i + 1))) + '</option>';
+          }));
+          return '<label>' + esc(NOME_CAMPO[campo]) + '<select data-lado="' + lado + '" data-campo="' + campo + '">' +
+            opcoes.join('') + '</select></label>';
+        }).join('') + '</div>');
+    });
+    $('mapa-colunas').innerHTML = partes.join('');
+  }
+
+  function renderFiltros() {
+    $('filtros').innerHTML = SITUACOES.map(function (s) {
+      return '<button type="button" data-situacao="' + esc(s.chave) + '" aria-pressed="' +
+        (estado.situacao === s.chave ? 'true' : 'false') + '">' + esc(s.rotulo) + '</button>';
+    }).join('');
+  }
+
+  function linhasDo(r) {
+    var linhas = [];
+    r.pares.forEach(function (p) {
+      linhas.push({
+        data: p.banco.data, chave: p.tipo, banco: [p.banco], sistema: p.sistema,
+        tag: p.tipo === 'certo' ? 'ok' : (p.tipo === 'divergente' ? 'erro' : 'alerta'),
+        rotulo: p.tipo === 'certo' ? 'conciliado' : (p.tipo === 'divergente' ? 'divergente' : 'provável'),
+        motivo: p.motivo
+      });
+    });
+    r.soBanco.forEach(function (l) {
+      linhas.push({ data: l.data, chave: 'soBanco', banco: [l], sistema: [], tag: 'banco',
+        rotulo: 'só no banco', motivo: 'não achei no sistema' });
+    });
+    r.soSistema.forEach(function (l) {
+      linhas.push({ data: l.data, chave: 'soSistema', banco: [], sistema: [l], tag: 'sistema',
+        rotulo: 'só no sistema', motivo: 'não achei no extrato' });
+    });
+    linhas.sort(function (a, b) {
+      var x = a.data || '9999-99-99', y = b.data || '9999-99-99';
+      return x < y ? -1 : x > y ? 1 : 0;
+    });
+    return linhas;
+  }
+
+  function visiveis() {
+    var termo = estado.filtro.trim().toLowerCase();
+    return linhasDo(estado.resultado).filter(function (l) {
+      if (estado.situacao !== 'tudo' && l.chave !== estado.situacao) return false;
+      if (!termo) return true;
+      var texto = l.banco.concat(l.sistema).map(function (x) {
+        return (x.descricao || '') + ' ' + (x.documento || '') + ' ' + COMUM.formatarValor(x.valor);
+      }).join(' ') + ' ' + l.rotulo + ' ' + l.motivo;
+      return texto.toLowerCase().indexOf(termo) >= 0;
+    });
+  }
+
+  function celulaLado(lista) {
+    if (!lista.length) return '<span class="vazio">—</span>';
+    return lista.map(function (l) {
+      return '<b>' + esc(l.descricao || 'sem histórico') + '</b><span class="num">' +
+        esc(reais(l.valor)) + (l.documento ? ' · doc ' + esc(l.documento) : '') + '</span>';
+    }).join('');
+  }
+
+  function renderTabela(animar) {
+    var lista = visiveis();
+    var html = lista.map(function (l, i) {
+      /* o título é o lado que tem lançamento: na linha só do sistema, o extrato é que está vazio */
+      var noBanco = l.banco.length > 0;
+      return '<tr class="linha"' + (animar && i < 30 ? ' style="--i:' + i + '"' : ' style="animation:none"') + '>' +
+        '<td><span class="rot">Data</span>' + esc(COMUM.formatarData(l.data) || '—') + '</td>' +
+        '<td class="lado' + (noBanco ? ' titulo' : '') + '">' +
+        (noBanco ? '' : '<span class="rot">Extrato</span>') + celulaLado(l.banco) + '</td>' +
+        '<td class="seta" aria-hidden="true">' + (noBanco && l.sistema.length ? '↔' : '') + '</td>' +
+        '<td class="lado' + (noBanco ? '' : ' titulo') + '">' +
+        (noBanco ? '<span class="rot">Sistema</span>' : '') + celulaLado(l.sistema) + '</td>' +
+        '<td><span class="rot">Situação</span><span class="tag ' + esc(l.tag) + '">' + esc(l.rotulo) + '</span></td>' +
+        '<td class="motivo"><span class="rot">Motivo</span>' + esc(l.motivo) + '</td>' +
+        '</tr>';
+    }).join('');
+    $('linhas').innerHTML = html ||
+      '<tr><td colspan="6" class="nada">Nenhum lançamento nesse filtro.</td></tr>';
+
+    var total = 0;
+    lista.forEach(function (l) {
+      (l.banco.length ? l.banco : l.sistema).forEach(function (x) { total += Number(x.valor) || 0; });
+    });
+    $('rodape-nota').textContent = plural(lista.length, 'linha na tabela', 'linhas na tabela');
+    $('rodape-total').textContent = reais(total);
+  }
+
+  function render(arquivoNovo) {
+    renderLida();
+    renderResumo();
+    renderKpis();
+    renderTolerancia();
+    if (arquivoNovo) {
+      renderColunas();
+      renderFiltros();
+    }
+    renderTabela(arquivoNovo);
+    var tem = estado.resultado.pares.length + estado.resultado.soBanco.length + estado.resultado.soSistema.length;
+    $('numeros').hidden = !tem;
+    $('corpo').hidden = !tem;
+    $('vazio').hidden = !!tem;
+    if (!tem) {
+      $('mapa').open = true;
+      $('vazio').textContent = 'Os dois arquivos foram lidos, mas não achei lançamento nenhum. Ajuste as colunas de data e valor logo acima — a conciliação refaz na hora.';
+    }
+    if (arquivoNovo) HT.mostrarResultado();
+  }
+
+  /* ---------- interação ---------- */
+
+  /* o número acompanha o arrasto; a conciliação inteira só refaz quando ele solta */
+  $('tolerancia').addEventListener('input', renderTolerancia);
+  $('tolerancia').addEventListener('change', function () { recalcular(false); });
+  $('inverter-banco').addEventListener('change', function () {
+    estado.banco.inverter = this.checked;
+    recalcular(false);
+  });
+  $('inverter-sistema').addEventListener('change', function () {
+    estado.sistema.inverter = this.checked;
+    recalcular(false);
+  });
+  $('mapa-colunas').addEventListener('change', function (e) {
+    var alvo = e.target.closest('select[data-campo]');
+    if (!alvo) return;
+    estado[alvo.dataset.lado].mapa[alvo.dataset.campo] = Number(alvo.value);
+    recalcular(false);
+  });
+  $('filtros').addEventListener('click', function (e) {
+    var alvo = e.target.closest('button[data-situacao]');
+    if (!alvo) return;
+    estado.situacao = alvo.dataset.situacao;
+    renderFiltros();
+    renderTabela(false);
+  });
+  /* uma tabela inteira por tecla digitada trava a rolagem: 150 ms depois da última é o bastante */
+  var esperaBusca = null;
+  $('busca').addEventListener('input', function () {
+    var valor = this.value;
+    if (esperaBusca) clearTimeout(esperaBusca);
+    esperaBusca = setTimeout(function () {
+      esperaBusca = null;
+      estado.filtro = valor;
+      renderTabela(false);
+    }, 150);
+  });
+
+  /* ---------- exportar ---------- */
+
+  function nomeArquivo(base) { return base + '-' + hoje + '.csv'; }
+
+  $('baixar-pendencias').addEventListener('click', function () {
+    HT.baixar(nomeArquivo('pendencias'), CONC.csvPendencias(estado.resultado));
+  });
+  $('baixar-completo').addEventListener('click', function () {
+    HT.baixar(nomeArquivo('conciliacao'), CONC.csvCompleto(estado.resultado));
+  });
+
+  function paraCopiar() {
+    var linhas = [['Data', 'Extrato', 'Valor extrato', 'Sistema', 'Valor sistema', 'Situação', 'Motivo']];
+    visiveis().forEach(function (l) {
+      linhas.push([
+        COMUM.formatarData(l.data),
+        l.banco.map(function (x) { return x.descricao; }).join(' + '),
+        l.banco.length ? COMUM.formatarValor(l.banco[0].valor) : '',
+        l.sistema.map(function (x) { return x.descricao; }).join(' + '),
+        l.sistema.map(function (x) { return COMUM.formatarValor(x.valor); }).join(' + '),
+        l.rotulo, l.motivo
+      ]);
+    });
+    return COMUM.tsv(linhas);
+  }
+
+  $('copiar').addEventListener('click', function () {
+    HT.copiar(paraCopiar()).then(function (ok) {
+      HT.avisar($('copiado'), ok ? 'Copiado — cole na planilha.' :
+        'Não deu para copiar — selecione a tabela e use Ctrl+C.', ok ? 2500 : 5000);
+    });
+  });
+
+  HT.iniciar();
+})();
+</script>

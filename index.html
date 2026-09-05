@@ -1,0 +1,1392 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<title>High Tide</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="High Tide — automação de processos, sistemas sob medida e integração de dados para empresas.">
+<link rel="icon" type="image/png" href="telas/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,600..800&family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+
+<style>
+  /* ================= tokens — dark-first ================= */
+  :root {
+    --fundo:      #070B18;
+    --fundo-2:    #0B1124;
+    --superficie: #101A38;
+    --tinta:      #EAEFFF;
+    --tinta-mid:  #99A5D0;
+    --linha:      #1E2A52;
+    --linha-forte:#2E3D6E;
+    --coral:      #FF6B5A;
+    --coral-luz:  #FF8E7F;
+    --azul:       #7C8CFF;
+    --azul-fundo: #2B3A8F;
+    --ciano:      #4FD8E8;
+    --sol:        #FFB443;
+    --glow:       124 140 255;
+    --alfa-campo: 1;
+    --grade: radial-gradient(circle, color-mix(in srgb, var(--azul) 26%, transparent) .9px, transparent .9px);
+    color-scheme: dark;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --fundo:      #EDF1FD;
+      --fundo-2:    #DEE6FB;
+      --superficie: #FFFFFF;
+      --tinta:      #050B22;
+      --tinta-mid:  #3E4B7E;
+      --linha:      #C6D2F0;
+      --linha-forte:#9EAFE0;
+      --coral:      #D93A22;
+      --coral-luz:  #EE5236;
+      --azul:       #2C3DB4;
+      --azul-fundo: #B2BFF3;
+      --ciano:      #04697F;
+      --sol:        #B36A00;
+      --glow:       44 61 180;
+      --alfa-campo: 1.55;
+      color-scheme: light;
+    }
+  }
+  :root[data-theme="light"] {
+    --fundo:      #EDF1FD;
+    --fundo-2:    #DEE6FB;
+    --superficie: #FFFFFF;
+    --tinta:      #050B22;
+    --tinta-mid:  #3E4B7E;
+    --linha:      #C6D2F0;
+    --linha-forte:#9EAFE0;
+    --coral:      #D93A22;
+    --coral-luz:  #EE5236;
+    --azul:       #2C3DB4;
+    --azul-fundo: #B2BFF3;
+    --ciano:      #04697F;
+    --sol:        #B36A00;
+    --glow:       44 61 180;
+    --alfa-campo: 1.55;
+    color-scheme: light;
+  }
+
+  /* ================= base ================= */
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  section[id] { scroll-margin-top: 5.5rem; }
+  body {
+    margin: 0;
+    /* a mesma grade de dados do hero, discreta, atravessando a página inteira */
+    background: var(--grade) 0 0 / 30px 30px, var(--fundo);
+    color: var(--tinta);
+    font-family: Archivo, ui-sans-serif, system-ui, sans-serif;
+    font-size: 17px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+  h1, h2, h3 {
+    font-family: "Bricolage Grotesque", Archivo, ui-sans-serif, sans-serif;
+    font-weight: 800;
+    letter-spacing: -0.035em;
+    line-height: 1.03;
+    margin: 0;
+    text-wrap: balance;
+  }
+  p { margin: 0; max-width: 68ch; }
+  a { color: inherit; }
+  :focus-visible { outline: 2px solid var(--ciano); outline-offset: 4px; border-radius: 3px; }
+  .env { width: min(1180px, 100% - 2.5rem); margin-inline: auto; }
+  .mono { font-family: "JetBrains Mono", ui-monospace, monospace; }
+
+  /* ================= entrada por scroll ================= */
+  .surge { opacity: 0; transform: translateY(14px);
+           transition: opacity .5s cubic-bezier(.2,.7,.3,1), transform .5s cubic-bezier(.2,.7,.3,1); }
+  .surge.dentro { opacity: 1; transform: none; }
+  /* camada própria só enquanto o item está prestes a entrar — o JS põe e tira */
+  .surge.pronta { will-change: opacity, transform; }
+  .surge[style*="--i"] { transition-delay: calc(var(--i) * 70ms); }
+
+  /* ================= header ================= */
+  body > header { position: fixed; inset: 0 0 auto; z-index: 60; padding: 1.1rem 0; transition: padding .3s, background .3s, box-shadow .3s; }
+  /* véu no topo: garante leitura do menu mesmo antes de o fundo entrar */
+  body > header::before {
+    content: ""; position: absolute; inset: 0 0 -24px; z-index: -1; pointer-events: none;
+    background: linear-gradient(to bottom, var(--fundo) 30%, transparent);
+    transition: opacity .3s;
+  }
+  body > header.preso::before { opacity: 0; }
+  body > header.preso { padding: .5rem 0; background: color-mix(in srgb, var(--fundo) 92%, transparent); backdrop-filter: blur(8px); box-shadow: 0 1px 0 var(--linha); }
+  .barra { display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; }
+  .marca { display: flex; align-items: center; text-decoration: none; }
+  .marca img { height: 46px; width: auto; }
+  /* a logo tem duas versões: o hexágono coral é o mesmo, só o wordmark muda de cor.
+     A especificidade tem que bater .marca img, senão as duas aparecem juntas. */
+  .marca img.so-escuro { display: block; }
+  .marca img.so-claro  { display: none; }
+  :root[data-theme="light"] .marca img.so-claro  { display: block; }
+  :root[data-theme="light"] .marca img.so-escuro { display: none; }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) .marca img.so-claro  { display: block; }
+    :root:not([data-theme="dark"]) .marca img.so-escuro { display: none; }
+  }
+
+  nav { display: flex; align-items: center; gap: 1.6rem; }
+  nav a.item { position: relative; text-decoration: none; color: var(--tinta-mid); font-size: .95rem; font-weight: 500; transition: color .25s; }
+  nav a.item::after { content: ""; position: absolute; left: 0; right: 0; bottom: -6px; height: 1px; background: var(--ciano); transform: scaleX(0); transform-origin: left; transition: transform .35s cubic-bezier(.2,.7,.3,1); }
+  nav a.item:hover { color: var(--tinta); }
+  nav a.item:hover::after { transform: scaleX(1); }
+
+  .btn {
+    position: relative; overflow: hidden;
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: .72rem 1.35rem;
+    background: var(--coral); color: #FFF4F1;
+    font: 600 .95rem/1 Archivo, sans-serif; text-decoration: none;
+    border: 0; border-radius: 999px; cursor: pointer;
+    box-shadow: 0 8px 30px -12px var(--coral);
+    transition: transform .2s cubic-bezier(.2,.7,.3,1), box-shadow .2s;
+  }
+  .btn span { position: relative; z-index: 1; }
+  .btn::after {
+    content: ""; position: absolute; inset: 0;
+    background: radial-gradient(120px circle at var(--mx, 50%) var(--my, 50%), rgb(255 255 255 / .35), transparent 60%);
+    opacity: 0; transition: opacity .3s;
+  }
+  .btn:hover { transform: translateY(-2px); box-shadow: 0 14px 40px -14px var(--coral); }
+  .btn:hover::after { opacity: 1; }
+
+  .tema { width: 38px; height: 38px; display: grid; place-items: center; background: transparent; border: 1px solid var(--linha-forte); border-radius: 999px; color: var(--tinta-mid); cursor: pointer; transition: color .25s, border-color .25s, transform .35s; }
+  .tema:hover { color: var(--ciano); border-color: var(--ciano); transform: rotate(25deg); }
+  .tema svg { width: 17px; height: 17px; }
+  .tema .lua { display: block; }
+  .tema .sol { display: none; }
+  :root[data-theme="light"] .tema .lua { display: none; }
+  :root[data-theme="light"] .tema .sol { display: block; }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) .tema .lua { display: none; }
+    :root:not([data-theme="dark"]) .tema .sol { display: block; }
+  }
+
+  /* ================= régua de maré lateral ================= */
+  .mare-lateral { position: fixed; left: 26px; top: 50%; translate: 0 -50%; z-index: 40; width: 2px; height: 220px; background: var(--linha); border-radius: 2px; }
+  /* transform em vez de height/bottom: sem layout a cada quadro de scroll */
+  .mare-lateral i { position: absolute; inset: 0; background: linear-gradient(to top, var(--coral), var(--sol)); border-radius: 2px; transform: scaleY(var(--p, 0)); transform-origin: bottom; }
+  .mare-lateral b { position: absolute; left: 10px; bottom: 0; font: 500 10px/1 "JetBrains Mono", monospace; color: var(--tinta-mid); white-space: nowrap; transform: translateY(calc(var(--p, 0) * -220px + 50%)); }
+  @media (max-width: 1320px) { .mare-lateral { display: none; } }
+
+  /* ================= hero ================= */
+  /* fundo próprio: aqui a grade quem desenha é o canvas, não a textura do body */
+  .hero { position: relative; min-height: 92vh; display: flex; align-items: center; padding: 9rem 0 6rem; overflow: hidden; background: var(--fundo); }
+  /* o campo desaparece por baixo da coluna de texto — leitura vem antes do efeito */
+  #campo {
+    position: absolute; inset: 0; width: 100%; height: 100%; display: block;
+    -webkit-mask-image: linear-gradient(90deg, rgb(0 0 0 / .10) 0%, rgb(0 0 0 / .22) 30%, rgb(0 0 0 / .7) 52%, #000 70%);
+    mask-image: linear-gradient(90deg, rgb(0 0 0 / .10) 0%, rgb(0 0 0 / .22) 30%, rgb(0 0 0 / .7) 52%, #000 70%);
+  }
+  .hero::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: radial-gradient(135% 95% at 12% 0%, transparent 62%, var(--fundo) 100%);
+  }
+  .hero__conteudo { position: relative; z-index: 2; }
+
+  .selo { display: inline-flex; align-items: center; gap: .55rem; padding: .4rem .85rem .4rem .6rem; border: 1px solid var(--linha-forte); border-radius: 999px; font-size: .82rem; color: var(--tinta-mid); background: color-mix(in srgb, var(--fundo) 65%, transparent); backdrop-filter: blur(6px); }
+  .selo i { position: relative; width: 7px; height: 7px; border-radius: 50%; background: var(--ciano); }
+  .selo i::after { content: ""; position: absolute; inset: 0; border-radius: 50%; background: var(--ciano); animation: pulso 2.6s ease-out infinite; }
+  @keyframes pulso { 0% { transform: scale(1); opacity: .7; } 70%, 100% { transform: scale(3.6); opacity: 0; } }
+
+  h1 { margin-top: 1.7rem; font-size: clamp(2.6rem, 7.4vw, 5.6rem); max-width: 15ch; }
+  h1 .linha { display: block; overflow: hidden; }
+  h1 .linha > span { display: block; transform: translateY(105%); animation: sobe .95s cubic-bezier(.16,.84,.3,1) forwards; }
+  h1 .linha:nth-child(2) > span { animation-delay: .1s; }
+  h1 .linha:nth-child(3) > span { animation-delay: .2s; }
+  @keyframes sobe { to { transform: none; } }
+  h1 em { font-style: normal; color: var(--coral); }
+
+  .lead { margin-top: 1.9rem; font-size: 1.16rem; color: var(--tinta-mid); max-width: 54ch; }
+  .acoes { margin-top: 2.4rem; display: flex; flex-wrap: wrap; align-items: center; gap: 1.5rem; }
+  .acoes .btn { padding: .95rem 1.75rem; font-size: 1.02rem; }
+  .link-desce { display: inline-flex; align-items: center; gap: .6rem; text-decoration: none; font-weight: 600; color: var(--tinta); }
+  .link-desce i { display: block; width: 30px; height: 1px; background: var(--ciano); transition: width .3s cubic-bezier(.2,.7,.3,1); }
+  .link-desce:hover i { width: 48px; }
+
+  .regua { margin-top: 4.5rem; border-top: 1px solid var(--linha-forte); display: grid; grid-template-columns: repeat(3, 1fr); }
+  .regua div { padding: 1.05rem 1.4rem 0 0; position: relative; font-size: .95rem; color: var(--tinta-mid); }
+  .regua b { display: block; color: var(--tinta); font-weight: 600; font-size: 1.02rem; }
+
+  /* ================= seções ================= */
+  section { padding: 7rem 0; position: relative; }
+  .faixa { background: var(--grade) 0 0 / 30px 30px, linear-gradient(180deg, var(--fundo-2), color-mix(in srgb, var(--fundo-2) 35%, var(--fundo))); }
+  .faixa::before, .faixa::after { content: ""; position: absolute; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, transparent, var(--linha-forte), transparent); }
+  .faixa::before { top: 0; } .faixa::after { bottom: 0; }
+  .cabeca { max-width: 62ch; margin-bottom: 3.5rem; }
+  .cabeca h2 { font-size: clamp(1.9rem, 4vw, 3rem); }
+  .cabeca p { margin-top: 1.1rem; color: var(--tinta-mid); font-size: 1.08rem; }
+
+  /* fluxo animado */
+  .fluxo { margin: 0 0 4.5rem; padding: 1.7rem 1.6rem 1.4rem; border: 1px solid var(--linha); border-radius: 16px; background: color-mix(in srgb, var(--superficie) 45%, transparent); overflow-x: auto; }
+  .fluxo__legenda { display: grid; grid-template-columns: 30% 40% 30%; min-width: 660px; margin-bottom: .5rem; }
+  .etiqueta { font: 600 .72rem/1.3 "JetBrains Mono", monospace; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
+  .etiqueta.entra { color: var(--ciano); }
+  .etiqueta.motor { color: var(--coral); text-align: center; }
+  .etiqueta.sai   { color: var(--sol); text-align: right; }
+  .fluxo svg { display: block; width: 100%; min-width: 660px; height: auto; }
+  .fluxo .caixa { fill: color-mix(in srgb, var(--superficie) 90%, transparent); stroke: var(--linha-forte); }
+  .fluxo .motor { fill: color-mix(in srgb, var(--coral) 12%, transparent); stroke: var(--coral); stroke-width: 1.2; }
+  .fluxo .rot { font: 400 11.5px Archivo, sans-serif; fill: var(--tinta-mid); }
+  .fluxo .nome { font: 600 14px Archivo, sans-serif; fill: var(--tinta); }
+  .fluxo .centro { text-anchor: middle; }
+  .fluxo .trilho { stroke: var(--linha-forte); stroke-width: 1.5; fill: none; }
+  .fluxo .nucleo { fill: none; stroke: var(--coral); stroke-width: 1.5; }
+  .fluxo .pulso { fill: var(--ciano); }
+  .fluxo .pulso.q { fill: var(--sol); }
+  .fluxo__nota { margin-top: 1.3rem; padding-top: 1.2rem; border-top: 1px solid var(--linha); font-size: .96rem; color: var(--tinta-mid); max-width: 76ch; }
+
+  /* frentes */
+  .frentes { border-top: 1px solid var(--linha); }
+  .frente { position: relative; display: grid; grid-template-columns: minmax(0, 9fr) minmax(0, 13fr); gap: 1rem 3rem; padding: 2.2rem 1rem 2.2rem 0; border-bottom: 1px solid var(--linha); transition: padding-left .4s cubic-bezier(.2,.7,.3,1); }
+  .frente::before { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, color-mix(in srgb, var(--azul-fundo) 30%, transparent), transparent 55%); opacity: 0; transition: opacity .4s; pointer-events: none; }
+  .frente:hover { padding-left: 1.3rem; }
+  .frente:hover::before { opacity: 1; }
+  .frente h3 { font-size: clamp(1.35rem, 2.6vw, 1.9rem); }
+  .frente p { color: var(--tinta-mid); }
+  .ganho { display: block; margin-top: .7rem; font: 600 .82rem/1.5 "JetBrains Mono", monospace; letter-spacing: .02em; color: var(--ciano); }
+
+  /* sinais */
+  .sinais { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 4rem; }
+  .sinal { padding: 1.5rem 0; border-top: 1px solid var(--linha); font-size: 1.1rem; font-weight: 500; line-height: 1.45; }
+  .sinal a { display: inline-flex; align-items: center; gap: .4rem; margin-top: .45rem; font-size: .88rem; font-weight: 600; color: var(--ciano); text-decoration: none; }
+  .sinal a::after { content: "→"; transition: transform .3s; }
+  .sinal a:hover::after { transform: translateX(4px); }
+  .fecho { margin-top: 3rem; font-size: 1.08rem; color: var(--tinta-mid); }
+  .fecho strong { color: var(--tinta); font-weight: 600; }
+
+  /* amostras: cada card é uma demo que roda no navegador do visitante */
+  .amostras { display: grid; grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr)); gap: 1.2rem; }
+  .amostra {
+    position: relative; display: flex; flex-direction: column; gap: .55rem;
+    padding: 1.6rem 1.6rem 1.4rem; border: 1px solid var(--linha); border-radius: 16px;
+    background: color-mix(in srgb, var(--superficie) 40%, transparent);
+    text-decoration: none; color: inherit;
+    transition: border-color .35s, transform .35s cubic-bezier(.2,.7,.3,1);
+  }
+  .amostra:hover { border-color: var(--ciano); transform: translateY(-3px); }
+  .amostra .entra { align-self: flex-start; padding: .25rem .6rem; border: 1px solid color-mix(in srgb, var(--ciano) 45%, transparent); border-radius: 999px; font: 600 .68rem/1.3 "JetBrains Mono", monospace; letter-spacing: .07em; text-transform: uppercase; color: var(--ciano); }
+  .amostra h3 { margin-top: .35rem; font-size: 1.25rem; }
+  .amostra p { flex: 1; color: var(--tinta-mid); font-size: .97rem; line-height: 1.5; }
+  .amostra i { display: inline-flex; align-items: center; gap: .4rem; margin-top: .4rem; font-style: normal; font-weight: 600; font-size: .9rem; color: var(--coral); }
+  .amostra i::after { content: "→"; transition: transform .3s; }
+  .amostra:hover i::after { transform: translateX(4px); }
+  .amostras__nota { display: flex; flex-wrap: wrap; align-items: center; gap: .8rem 1.6rem; margin-top: 2.2rem; font-size: .95rem; color: var(--tinta-mid); }
+  .amostras__nota svg { width: 16px; height: 16px; color: var(--ciano); flex: none; }
+  .amostras__nota span { display: inline-flex; align-items: center; gap: .5rem; }
+
+  /* etapas */
+  .etapas { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 2.5rem; }
+  .etapa { position: relative; padding-top: 1.4rem; border-top: 1px solid var(--linha-forte); }
+  .etapa::before { content: ""; position: absolute; top: -1px; left: 0; height: 1px; width: 0; background: var(--coral); transition: width 1s cubic-bezier(.2,.7,.3,1) var(--d, 0s); }
+  .etapa.dentro::before { width: 100%; }
+  .etapa .n { font: 500 .8rem/1 "JetBrains Mono", monospace; color: var(--ciano); }
+  .etapa h3 { margin: .6rem 0 .7rem; font-size: 1.35rem; }
+  .etapa p { color: var(--tinta-mid); font-size: 1rem; }
+
+  /* casos */
+  .casos { display: grid; gap: 1.2rem; }
+  .caso {
+    position: relative; overflow: hidden;
+    padding: 1.9rem 1.9rem 1.6rem;
+    border: 1px solid var(--linha); border-radius: 16px;
+    background: color-mix(in srgb, var(--superficie) 40%, transparent);
+    transition: border-color .35s;
+  }
+  .caso::before { content: ""; position: absolute; inset: 0; background: radial-gradient(460px circle at var(--mx, 50%) var(--my, 50%), rgb(var(--glow) / .13), transparent 70%); opacity: 0; transition: opacity .45s; pointer-events: none; }
+  .caso:hover { border-color: var(--linha-forte); }
+  .caso:hover::before { opacity: 1; }
+  .caso header { display: flex; flex-wrap: wrap; align-items: baseline; gap: .4rem 1rem; margin-bottom: 1.4rem; }
+  .caso h3 { font-size: 1.42rem; }
+  .setor { font: 500 .82rem/1 "JetBrains Mono", monospace; color: var(--tinta-mid); }
+  .caso dl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.8rem; margin: 0; }
+  .caso dt { font: 600 .74rem/1 "JetBrains Mono", monospace; letter-spacing: .06em; text-transform: uppercase; color: var(--coral); margin-bottom: .55rem; }
+  .caso dl > div:nth-child(2) dt { color: var(--azul); }
+  .caso dl > div:nth-child(3) dt { color: var(--ciano); }
+  .caso dd { margin: 0; color: var(--tinta-mid); font-size: .98rem; line-height: 1.55; }
+  .caso dl > div:nth-child(3) dd { color: var(--tinta); }
+  .pilha { margin-top: 1.6rem; padding-top: 1.1rem; border-top: 1px solid var(--linha); font: 500 .78rem/1.7 "JetBrains Mono", monospace; color: var(--tinta-mid); }
+
+  /* cta */
+  .cta { position: relative; overflow: hidden; background: var(--fundo-2); padding: 8rem 0; }
+  #mare-cta {
+    position: absolute; inset: auto 0 0; width: 100%; height: 60%; display: block;
+    -webkit-mask-image: linear-gradient(95deg, transparent 6%, #000 52%);
+    mask-image: linear-gradient(95deg, transparent 6%, #000 52%);
+  }
+  .cta__conteudo { position: relative; z-index: 2; }
+  .cta h2 { font-size: clamp(2rem, 5vw, 3.4rem); max-width: 17ch; }
+  .cta p { margin-top: 1.3rem; font-size: 1.12rem; color: var(--tinta-mid); }
+  .cta .btn { margin-top: 2.3rem; padding: 1.05rem 2rem; font-size: 1.05rem; }
+  .contato { margin-top: 1.6rem; font-size: .97rem; color: var(--tinta-mid); }
+  .contato a { color: var(--tinta); text-decoration-color: var(--coral); text-underline-offset: 3px; }
+
+  footer { padding: 2.6rem 0; border-top: 1px solid var(--linha); }
+  .rodape { display: flex; flex-wrap: wrap; gap: 1rem 2rem; align-items: center; justify-content: space-between; font-size: .9rem; color: var(--tinta-mid); }
+  .rodape .marca img { height: 34px; }
+
+  /* ================= calculadora ================= */
+  .conta { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 3.5rem; align-items: start; }
+  .controles { display: grid; gap: 2.2rem; }
+  .ctrl label { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; font-size: .97rem; color: var(--tinta-mid); }
+  .ctrl output { font: 600 1.05rem/1 "JetBrains Mono", monospace; color: var(--tinta); font-variant-numeric: tabular-nums; }
+
+  input[type=range] {
+    -webkit-appearance: none; appearance: none;
+    width: 100%; margin: .9rem 0 0; height: 22px; background: transparent; cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-runnable-track {
+    height: 2px; border-radius: 2px;
+    background: linear-gradient(90deg, var(--coral) var(--preenchido, 0%), var(--linha-forte) var(--preenchido, 0%));
+  }
+  input[type=range]::-moz-range-track { height: 2px; border-radius: 2px; background: var(--linha-forte); }
+  input[type=range]::-moz-range-progress { height: 2px; border-radius: 2px; background: var(--coral); }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 16px; height: 16px; margin-top: -7px; border-radius: 50%;
+    background: var(--coral); border: 3px solid var(--fundo);
+    box-shadow: 0 0 0 1px var(--coral); transition: transform .15s;
+  }
+  input[type=range]::-moz-range-thumb {
+    width: 16px; height: 16px; border-radius: 50%; background: var(--coral);
+    border: 3px solid var(--fundo); box-shadow: 0 0 0 1px var(--coral);
+  }
+  input[type=range]:hover::-webkit-slider-thumb { transform: scale(1.15); }
+  .escala { display: flex; justify-content: space-between; margin-top: .45rem; font: 500 .72rem/1 "JetBrains Mono", monospace; color: var(--tinta-mid); opacity: .75; }
+
+  .placar { padding: 2rem; border: 1px solid var(--linha-forte); border-radius: 16px; background: color-mix(in srgb, var(--superficie) 55%, transparent); }
+  .placar .rotulo { font-size: .92rem; color: var(--tinta-mid); }
+  .placar .grande { font-family: "Bricolage Grotesque", sans-serif; font-weight: 800; letter-spacing: -0.04em; font-size: clamp(2.4rem, 6vw, 3.6rem); line-height: 1; font-variant-numeric: tabular-nums; margin-top: .35rem; }
+  .placar .horas { margin-top: .5rem; font-size: .97rem; color: var(--tinta-mid); font-variant-numeric: tabular-nums; }
+  .divisa { height: 1px; background: var(--linha); margin: 1.7rem 0; }
+  .placar .recupera { color: var(--coral); }
+  /* nome próprio: .barra já é a do header e a cascata não perdoa */
+  .medidor { position: relative; height: 8px; margin-top: .9rem; border-radius: 4px; background: var(--linha); overflow: hidden; }
+  .medidor i { position: absolute; inset: 0 auto 0 0; width: var(--fatia, 0%); background: linear-gradient(90deg, var(--sol), var(--coral)); border-radius: 4px; transition: width .35s cubic-bezier(.2,.7,.3,1); }
+  .nota { margin-top: 1.5rem; font-size: .88rem; color: var(--tinta-mid); }
+  .placar .btn { margin-top: 1.6rem; width: 100%; }
+
+  /* ================= telas do produto ================= */
+  .vitrine { margin-bottom: 4rem; }
+  .abas { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: 1.2rem; }
+  .abas button {
+    padding: .5rem 1rem; border-radius: 999px; cursor: pointer;
+    border: 1px solid var(--linha-forte); background: transparent;
+    color: var(--tinta-mid); font: 500 .9rem/1 Archivo, sans-serif;
+    transition: color .2s, border-color .2s, background .2s;
+  }
+  .abas button:hover { color: var(--tinta); border-color: var(--tinta-mid); }
+  .abas button[aria-selected="true"] { background: var(--coral); border-color: var(--coral); color: #FFF4F1; }
+
+  .janela { border: 1px solid var(--linha-forte); border-radius: 14px; overflow: hidden; background: var(--superficie); }
+  .janela .topo { display: flex; align-items: center; gap: .55rem; padding: .6rem .9rem; border-bottom: 1px solid var(--linha); background: color-mix(in srgb, var(--fundo-2) 70%, transparent); }
+  .janela .topo i { width: 9px; height: 9px; border-radius: 50%; background: var(--linha-forte); }
+  .janela .topo span { margin-left: .5rem; font: 500 .78rem/1 "JetBrains Mono", monospace; color: var(--tinta-mid); }
+  .janela img { display: block; width: 100%; height: auto; opacity: 1; transition: opacity .25s; }
+  .janela img.trocando { opacity: 0; }
+  .legenda { margin-top: 1rem; font-size: .98rem; color: var(--tinta-mid); max-width: 72ch; }
+
+  /* ================= perguntas ================= */
+  .duvidas { border-top: 1px solid var(--linha); max-width: 78ch; }
+  .duvidas details { border-bottom: 1px solid var(--linha); }
+  .duvidas summary {
+    list-style: none; cursor: pointer; padding: 1.35rem 2.5rem 1.35rem 0; position: relative;
+    font: 600 1.08rem/1.4 Archivo, sans-serif; color: var(--tinta);
+  }
+  .duvidas summary::-webkit-details-marker { display: none; }
+  .duvidas summary::after {
+    content: ""; position: absolute; right: .4rem; top: 1.75rem;
+    width: 11px; height: 11px; border-right: 2px solid var(--coral); border-bottom: 2px solid var(--coral);
+    transform: rotate(45deg); transition: transform .25s;
+  }
+  .duvidas details[open] summary::after { transform: rotate(-135deg); }
+  .duvidas p { padding: 0 2.5rem 1.5rem 0; color: var(--tinta-mid); }
+
+  /* ================= garantias + formulário ================= */
+  .garantias { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 1.6rem 2.5rem; margin-top: 3.2rem; }
+  .garantia { padding-top: 1rem; border-top: 1px solid var(--linha-forte); font-size: .98rem; color: var(--tinta-mid); }
+  .garantia b { display: block; color: var(--tinta); font-weight: 600; margin-bottom: .25rem; }
+
+  form.fala { margin-top: 2.4rem; display: grid; gap: 1.1rem; max-width: 34rem; }
+  form.fala .dupla { display: grid; grid-template-columns: 1fr 1fr; gap: 1.1rem; }
+  form.fala label { display: block; font-size: .88rem; color: var(--tinta-mid); margin-bottom: .4rem; }
+  form.fala input, form.fala textarea {
+    width: 100%; padding: .8rem .95rem; border-radius: 10px;
+    border: 1px solid var(--linha-forte); background: color-mix(in srgb, var(--superficie) 60%, transparent);
+    color: var(--tinta); font: 400 1rem/1.5 Archivo, sans-serif;
+    transition: border-color .2s;
+  }
+  form.fala textarea { resize: vertical; min-height: 5.5rem; }
+  form.fala input:focus, form.fala textarea:focus { outline: none; border-color: var(--coral); }
+  form.fala .btn { justify-self: start; padding: 1rem 1.9rem; font-size: 1.02rem; }
+
+  /* ================= responsivo ================= */
+  @media (max-width: 900px) {
+    nav .esconde-mob { display: none; }
+    .hero { min-height: 0; padding-top: 8rem; }
+    .frente { grid-template-columns: 1fr; gap: .7rem; }
+    .caso dl { grid-template-columns: 1fr; gap: 1.3rem; }
+    .caso { padding: 1.5rem 1.3rem 1.3rem; }
+    .frente:hover { padding-left: 0; }
+    .sinais { grid-template-columns: 1fr; }
+    .conta { grid-template-columns: 1fr; gap: 2.5rem; }
+    form.fala .dupla { grid-template-columns: 1fr; }
+    .regua { grid-template-columns: 1fr; }
+    .regua div { padding: .9rem 0 .3rem 1rem; }
+    .regua div + div { border-top: 1px solid var(--linha); }
+    section { padding: 4.8rem 0; }
+  }
+  @media (max-width: 640px) {
+    .barra { gap: .8rem; }
+    .marca img { height: 32px; }
+    nav { gap: .6rem; }
+    nav .btn { padding: .55rem .9rem; font-size: .84rem; white-space: nowrap; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+    .surge { opacity: 1; transform: none; filter: none; }
+    h1 .linha > span { transform: none; }
+    .etapa::before { width: 100%; }
+  }
+</style>
+
+<div id="sentinela" aria-hidden="true" style="position:absolute;top:0;left:0;width:1px;height:14px;pointer-events:none"></div>
+<div class="mare-lateral" aria-hidden="true"><i></i><b class="mono">maré</b></div>
+
+<header id="topo">
+  <div class="env barra">
+    <a class="marca" href="#topo" aria-label="High Tide, início">
+      <img class="so-escuro" src="telas/logo-escura.webp" width="524" height="120" alt="High Tide">
+      <img class="so-claro" src="telas/logo-clara.webp" width="524" height="120" alt="" aria-hidden="true">
+    </a>
+
+    <nav>
+      <a class="item esconde-mob" href="#servicos">O que fazemos</a>
+      <a class="item esconde-mob" href="#amostras">Teste agora</a>
+      <a class="item esconde-mob" href="#processo">Como trabalhamos</a>
+      <a class="item esconde-mob" href="#trabalhos">Trabalhos</a>
+      <button class="tema" id="tema" type="button" aria-label="Alternar tema claro e escuro">
+        <svg class="sol" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4"/></svg>
+        <svg class="lua" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z"/></svg>
+      </button>
+      <a class="btn" href="#orcamento"><span>Pedir orçamento</span></a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section class="hero" id="hero">
+    <canvas id="campo" aria-hidden="true"></canvas>
+
+    <div class="env hero__conteudo">
+      <div class="selo"><i></i> Automação de processos · Baixada Santista, atendimento remoto</div>
+
+      <h1>
+        <span class="linha"><span>Tiramos o trabalho</span></span>
+        <span class="linha"><span>manual da rotina</span></span>
+        <span class="linha"><span><em>da sua empresa.</em></span></span>
+      </h1>
+
+      <p class="lead">
+        A High Tide mapeia o processo que hoje consome as horas da sua equipe,
+        automatiza o que dá para automatizar e entrega o sistema rodando na
+        infraestrutura da sua empresa.
+      </p>
+
+      <div class="acoes">
+        <a class="btn" href="#orcamento"><span>Pedir orçamento</span></a>
+        <a class="link-desce" href="#servicos"><i></i> Ver o que fazemos</a>
+      </div>
+
+      <div class="regua">
+        <div><b>Redução de custos</b>A hora que hoje vai em trabalho repetido volta para o caixa</div>
+        <div><b>Produtividade</b>A mesma equipe entrega mais, sem trabalhar mais</div>
+        <div><b>Controle</b>Um número só, atualizado sozinho, igual para todo mundo</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="servicos">
+    <div class="env">
+      <div class="cabeca surge">
+        <h2>O que fazemos</h2>
+        <p>Quatro frentes, combinadas conforme o tamanho do problema. Quase todo projeto começa pequeno, numa só.</p>
+      </div>
+
+      <div class="fluxo">
+        <div class="fluxo__legenda">
+          <span class="etiqueta entra">O que entra hoje</span>
+          <span class="etiqueta motor">O que a gente constrói</span>
+          <span class="etiqueta sai">O que passa a existir</span>
+        </div>
+
+        <svg viewBox="0 0 940 290" role="img"
+             aria-label="Da esquerda para a direita: planilhas, o sistema que a empresa já usa e pedidos por e-mail ou WhatsApp entram na rotina automática construida pela High Tide, que confere, aplica a regra e registra. Saem: os dados num lugar so, o painel atualizado sozinho e um aviso quando algo foge do padrao.">
+          <defs>
+            <path id="t1" d="M264 62 H392 Q424 62 424 96 V120"/>
+            <path id="t2" d="M264 145 H424"/>
+            <path id="t3" d="M264 228 H392 Q424 228 424 194 V170"/>
+            <path id="t4" d="M584 145 H648 Q680 145 680 111 V62 H752"/>
+            <path id="t5" d="M584 145 H752"/>
+            <path id="t6" d="M584 145 H648 Q680 145 680 179 V228 H752"/>
+          </defs>
+
+          <g class="caixa">
+            <rect x="14" y="34" width="250" height="56" rx="10"/>
+            <rect x="14" y="117" width="250" height="56" rx="10"/>
+            <rect x="14" y="200" width="250" height="56" rx="10"/>
+          </g>
+          <text class="nome" x="34" y="58">Planilhas</text>
+          <text class="rot"  x="34" y="78">a que alguém preenche toda semana</text>
+          <text class="nome" x="34" y="141">O sistema que você já usa</text>
+          <text class="rot"  x="34" y="161">continua no lugar, sem troca</text>
+          <text class="nome" x="34" y="224">Pedidos por e-mail e WhatsApp</text>
+          <text class="rot"  x="34" y="244">o que hoje alguém digita na mão</text>
+
+          <g class="trilho">
+            <use href="#t1"/><use href="#t2"/><use href="#t3"/>
+            <use href="#t4"/><use href="#t5"/><use href="#t6"/>
+          </g>
+
+          <g>
+            <rect class="motor" x="424" y="96" width="160" height="98" rx="14"/>
+            <circle class="nucleo" cx="504" cy="132" r="16"/>
+            <circle class="nucleo" cx="504" cy="132" r="26" opacity=".4">
+              <animate attributeName="r" values="20;31;20" dur="3.6s" repeatCount="indefinite"/>
+              <animate attributeName="opacity" values=".45;0;.45" dur="3.6s" repeatCount="indefinite"/>
+            </circle>
+            <text class="nome centro" x="504" y="172">Rotina automática</text>
+            <text class="rot centro"  x="504" y="190">lê · confere · registra</text>
+          </g>
+
+          <g class="caixa">
+            <rect x="752" y="34" width="174" height="56" rx="10"/>
+            <rect x="752" y="117" width="174" height="56" rx="10"/>
+            <rect x="752" y="200" width="174" height="56" rx="10"/>
+          </g>
+          <text class="nome" x="772" y="58">Tudo num lugar só</text>
+          <text class="rot"  x="772" y="78">um dado, uma versão</text>
+          <text class="nome" x="772" y="141">Painel sempre atual</text>
+          <text class="rot"  x="772" y="161">sem esperar o fechamento</text>
+          <text class="nome" x="772" y="224">Aviso quando algo foge</text>
+          <text class="rot"  x="772" y="244">erro aparece na hora</text>
+
+          <g class="pulsos">
+            <circle class="pulso" r="4"><animateMotion dur="3.2s" repeatCount="indefinite"><mpath href="#t1"/></animateMotion></circle>
+            <circle class="pulso" r="4"><animateMotion dur="3.2s" begin="1.1s" repeatCount="indefinite"><mpath href="#t2"/></animateMotion></circle>
+            <circle class="pulso" r="4"><animateMotion dur="3.2s" begin="2.1s" repeatCount="indefinite"><mpath href="#t3"/></animateMotion></circle>
+            <circle class="pulso q" r="4"><animateMotion dur="3.2s" begin=".6s" repeatCount="indefinite"><mpath href="#t4"/></animateMotion></circle>
+            <circle class="pulso q" r="4"><animateMotion dur="3.2s" begin="1.7s" repeatCount="indefinite"><mpath href="#t5"/></animateMotion></circle>
+            <circle class="pulso q" r="4"><animateMotion dur="3.2s" begin="2.7s" repeatCount="indefinite"><mpath href="#t6"/></animateMotion></circle>
+          </g>
+        </svg>
+
+        <p class="fluxo__nota">Ninguém troca de sistema nem muda o jeito de trabalhar. A rotina passa a acontecer sozinha — e o tempo que ia nela volta para a equipe.</p>
+      </div>
+
+      <div class="frentes surge">
+        <article class="frente">
+          <h3>Automação de processos</h3>
+          <p>Aquele fluxo que hoje depende de alguém lembrar de fazer: exportar, conferir, copiar, enviar. A gente descreve o processo junto com quem executa e transforma em rotina automática — com registro de tudo que aconteceu, para quando alguém perguntar.</p>
+          <span class="ganho">Redução de custos · concentração da equipe</span>
+        </article>
+
+        <article class="frente">
+          <h3>Sistemas sob medida</h3>
+          <p>Quando a planilha não dá mais conta e o sistema de prateleira não encaixa. Cadastro, agenda, financeiro, produção, estoque — construído em cima da operação que sua empresa já tem, não do fluxo que o fornecedor impôs.</p>
+          <span class="ganho">Produtividade · fim do retrabalho</span>
+        </article>
+
+        <article class="frente">
+          <h3>Integração de dados</h3>
+          <p>Dois sistemas que não conversam e uma pessoa no meio copiando dado de um para o outro. A gente liga os dois e tira a pessoa do meio — ela volta a fazer o trabalho que exige gente.</p>
+          <span class="ganho">Eficiência · menos erro de digitação</span>
+        </article>
+
+        <article class="frente">
+          <h3>Painéis e relatórios</h3>
+          <p>O número que hoje leva um dia para fechar, pronto quando você abre o navegador. Mesma fonte para todo mundo que olha, o que costuma acabar com metade das reuniões de conferência.</p>
+          <span class="ganho">Controle · decisão com número atual</span>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="faixa" id="sinais">
+    <div class="env">
+      <div class="cabeca surge">
+        <h2>Dá para automatizar na sua empresa?</h2>
+        <p>Se alguma destas frases descreve o seu mês, quase certamente sim.</p>
+      </div>
+
+      <div class="sinais surge">
+        <div class="sinal">Alguém exporta a mesma planilha toda semana, no mesmo dia, do mesmo jeito.<br><a href="demos/painel/index.html">Ver a amostra: painel automático</a></div>
+        <div class="sinal">O mesmo cadastro é digitado em dois sistemas diferentes.<br><a href="demos/duplicados/index.html">Ver a amostra: caça-duplicados</a></div>
+        <div class="sinal">O fechamento do mês trava um dia inteiro de alguém.<br><a href="demos/conciliador/index.html">Ver a amostra: conciliador bancário</a></div>
+        <div class="sinal">Quando essa pessoa falta, o processo para.<br><a href="demos/escala/index.html">Ver a amostra: gerador de escala</a></div>
+      </div>
+
+      <p class="fecho surge">
+        <strong>Processo que se repete e tem regra clara é processo que dá para automatizar.</strong>
+        A primeira conversa serve exatamente para descobrir se é o seu caso — e ela não custa nada.
+      </p>
+    </div>
+  </section>
+
+  <section id="amostras">
+    <div class="env">
+      <div class="cabeca surge">
+        <h2>Teste agora, com o seu arquivo.</h2>
+        <p>Nove amostras pequenas do que a gente automatiza. Cada uma roda inteira no seu navegador, sem cadastro, e tem dados de exemplo para quem só quer ver funcionando.</p>
+      </div>
+
+      <div class="amostras">
+        <a class="amostra surge" style="--i:0" href="demos/nfe/index.html">
+          <span class="entra">XML</span>
+          <h3>Extrator de NF-e</h3>
+          <p>Da pasta de XML para a planilha, sem digitar. Fornecedor, CNPJ, valor e vencimento, com as contas a pagar separadas.</p>
+          <i>Testar agora</i>
+        </a>
+        <a class="amostra surge" style="--i:1" href="demos/documentos/index.html">
+          <span class="entra">Formulário</span>
+          <h3>Gerador de documentos</h3>
+          <p>Preencheu uma vez, saem proposta, ordem de serviço e recibo em PDF, numerados e com valor por extenso.</p>
+          <i>Testar agora</i>
+        </a>
+        <a class="amostra surge" style="--i:2" href="demos/duplicados/index.html">
+          <span class="entra">CSV · XLSX</span>
+          <h3>Caça-duplicados</h3>
+          <p>O mesmo cliente cadastrado duas vezes, em um sistema ou em dois. Por CNPJ, e-mail, telefone ou nome parecido.</p>
+          <i>Testar agora</i>
+        </a>
+        <a class="amostra surge" style="--i:3" href="demos/conciliador/index.html">
+          <span class="entra">OFX · CSV</span>
+          <h3>Conciliador bancário</h3>
+          <p>Extrato de um lado, lançamentos do outro: o que bate, o que falta e o que sobra, em segundos.</p>
+          <i>Testar agora</i>
+        </a>
+        <a class="amostra surge" style="--i:4" href="demos/painel/index.html">
+          <span class="entra">CSV · XLSX</span>
+          <h3>Painel automático</h3>
+          <p>Sobe a planilha, saem os números e os gráficos. Reconhece as colunas sozinho, sem montar nada.</p>
+          <i>Testar agora</i>
+        </a>
+        <a class="amostra surge" style="--i:5" href="demos/auditor/index.html">
+          <span class="entra">CSV · XLSX</span>
+          <h3>Auditor de cadastro</h3>
+          <p>CPF errado, e-mail torto, telefone sem DDD. A nota da sua base, o que se corrige sozinho e a planilha corrigida.</p>
+          <i>Testar agora</i>
+        </a>
+        <a class="amostra surge" style="--i:6" href="demos/boleto/index.html">
+          <span class="entra">Câmera · Texto</span>
+          <h3>Leitor de boleto</h3>
+          <p>Cole a linha digitável ou aponte a câmera: banco, valor e vencimento na hora, e a lista de contas a pagar.</p>
+          <i>Testar agora</i>
+        </a>
+        <a class="amostra surge" style="--i:7" href="demos/cobranca/index.html">
+          <span class="entra">CSV · XLSX</span>
+          <h3>Cobrança no WhatsApp</h3>
+          <p>Contas a receber viram lembretes prontos, no dia certo, com o link de enviar. O serviço real manda sozinho.</p>
+          <i>Testar agora</i>
+        </a>
+        <a class="amostra surge" style="--i:8" href="demos/escala/index.html">
+          <span class="entra">Formulário</span>
+          <h3>Gerador de escala</h3>
+          <p>Equipe, turnos e folgas entram; a escala do mês sai. Marque uma falta e veja quem cobre.</p>
+          <i>Testar agora</i>
+        </a>
+      </div>
+
+      <p class="amostras__nota surge">
+        <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>Nada sai do seu navegador: os arquivos são lidos na sua máquina e não são enviados a servidor nenhum.</span>
+        <span>Cada amostra é uma versão pequena do que entregamos: na sua empresa, ela roda sozinha, no horário, com os seus sistemas.</span>
+      </p>
+    </div>
+  </section>
+
+  <section id="conta">
+    <div class="env">
+      <div class="cabeca surge">
+        <h2>Faça a conta do seu caso</h2>
+        <p>Os números são seus — a gente só multiplica. Dá para saber se vale a pena antes mesmo de falar com a gente.</p>
+      </div>
+
+      <div class="conta surge">
+        <div class="controles">
+          <div class="ctrl">
+            <label for="pessoas">Pessoas envolvidas nesse processo <output id="v-pessoas">2</output></label>
+            <input type="range" id="pessoas" min="1" max="15" step="1" value="2">
+            <div class="escala"><span>1</span><span>15</span></div>
+          </div>
+
+          <div class="ctrl">
+            <label for="horas">Horas por semana, cada uma <output id="v-horas">6 h</output></label>
+            <input type="range" id="horas" min="1" max="30" step="1" value="6">
+            <div class="escala"><span>1 h</span><span>30 h</span></div>
+          </div>
+
+          <div class="ctrl">
+            <label for="custo">Custo médio da hora <output id="v-custo">R$ 55</output></label>
+            <input type="range" id="custo" min="25" max="250" step="5" value="55">
+            <div class="escala"><span>R$ 25</span><span>R$ 250</span></div>
+          </div>
+
+          <div class="ctrl">
+            <label for="regra">Parte do trabalho que segue regra clara <output id="v-regra">70%</output></label>
+            <input type="range" id="regra" min="20" max="95" step="5" value="70">
+            <div class="escala"><span>20%</span><span>95%</span></div>
+          </div>
+        </div>
+
+        <div class="placar">
+          <div class="rotulo">Esse processo custa por ano</div>
+          <div class="grande" id="v-total">R$ 29.040</div>
+          <div class="horas" id="v-detalhe">528 horas — 13 semanas de uma pessoa em tempo integral</div>
+
+          <div class="divisa"></div>
+
+          <div class="rotulo">Dá para devolver ao seu time</div>
+          <div class="grande recupera" id="v-recupera">R$ 20.328</div>
+          <div class="medidor"><i id="v-barra" style="--fatia: 70%"></i></div>
+
+          <a class="btn" id="levar-conta" href="#orcamento"><span>Levar essa conta para a conversa</span></a>
+          <p class="nota">Conta feita sobre 44 semanas úteis. A parte automatizável é a que você marcou — na conversa a gente confere isso olhando o processo de verdade, e o número muda para mais ou para menos.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="processo">
+    <div class="env">
+      <div class="cabeca surge">
+        <h2>Como trabalhamos</h2>
+        <p>Três etapas, nesta ordem, em todo projeto.</p>
+      </div>
+
+      <div class="etapas">
+        <article class="etapa surge" style="--i:0; --d:.2s">
+          <div class="n">Etapa 1</div>
+          <h3>Conversa e mapeamento</h3>
+          <p>Uma call para entender o processo como ele é hoje, não como deveria ser no papel. Você sai dela com escopo, prazo e preço fechados.</p>
+        </article>
+        <article class="etapa surge" style="--i:1; --d:.5s">
+          <div class="n">Etapa 2</div>
+          <h3>Primeira versão rodando</h3>
+          <p>Entregamos cedo a menor versão que já resolve alguma coisa. Sua equipe usa e corrige o rumo antes de o projeto ficar caro de mudar.</p>
+        </article>
+        <article class="etapa surge" style="--i:2; --d:.8s">
+          <div class="n">Etapa 3</div>
+          <h3>Entrega e operação</h3>
+          <p>Sistema no ar, na infraestrutura da sua empresa e no nome dela. Treinamento de quem vai usar, documentação e suporte combinado.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="faixa" id="trabalhos">
+    <div class="env">
+      <div class="cabeca surge">
+        <h2>O que já construímos</h2>
+        <p>As telas abaixo são do High Tide Systems, plataforma de gestão de clínicas que construímos por inteiro. É o tipo de sistema que entregamos — o seu teria a cara da sua operação.</p>
+      </div>
+
+      <div class="vitrine surge">
+        <div class="abas" role="tablist" aria-label="Telas do sistema">
+          <button role="tab" aria-selected="true" data-tela="painel">Fechamento do mês</button>
+          <button role="tab" aria-selected="false" data-tela="agenda">Agenda da equipe</button>
+          <button role="tab" aria-selected="false" data-tela="relatorio">Análise de ocupação</button>
+          <button role="tab" aria-selected="false" data-tela="cadastro">Cadastro central</button>
+        </div>
+
+        <div class="janela">
+          <div class="topo"><i></i><i></i><i></i><span id="v-url">hightide.site/dashboard</span></div>
+          <img id="tela" src="telas/painel.webp" width="1400" height="650"
+               alt="Painel de agendamentos com total do mês, status por categoria e ranking de serviços">
+        </div>
+        <p class="legenda" id="v-legenda">O fechamento do mês em tela: total de agendamentos, quanto virou consulta, quanto caiu e quem mais atendeu. Antes disso, esses números saíam de exportação manual.</p>
+      </div>
+
+      <div class="casos">
+        <article class="caso surge" style="--i:0">
+          <header>
+            <h3>High Tide Systems</h3>
+            <span class="setor">Produto próprio · plataforma completa</span>
+          </header>
+          <dl>
+            <div><dt>O problema</dt><dd>Agenda no papel, cadastro em planilha e cobrança conferida na mão. Ninguém sabia a ocupação real sem parar meio dia para somar.</dd></div>
+            <div><dt>O que construímos</dt><dd>Plataforma multiempresa: agenda de todos os profissionais, prontuário, financeiro, chat interno, portal do paciente e cobrança recorrente pelo Stripe.</dd></div>
+            <div><dt>O que ela resolve</dt><dd>Ocupação, faturamento e faltas viram tela, atualizada sozinha. O paciente marca pelo portal e a confirmação entra direto na agenda. As telas acima são deste sistema.</dd></div>
+          </dl>
+          <div class="pilha">Next.js · Node.js · PostgreSQL · Redis · Stripe</div>
+        </article>
+
+        <article class="caso surge" style="--i:1">
+          <header>
+            <h3>SearchAp</h3>
+            <span class="setor">Produto próprio · mercado imobiliário</span>
+          </header>
+          <dl>
+            <div><dt>O problema</dt><dd>Achar imóvel exigia abrir portal por portal, cada um com um jeito de escrever endereço, área e preço. Comparar era trabalho manual sem fim.</dd></div>
+            <div><dt>O que construímos</dt><dd>Coleta automática de mais de 15 portais, com padronização de endereço, área e preço num banco único e busca sobre o conjunto todo.</dd></div>
+            <div><dt>O que ela resolve</dt><dd>Uma busca no lugar de quinze. O mesmo imóvel anunciado em portais diferentes aparece uma vez só, com o histórico de preço junto.</dd></div>
+          </dl>
+          <div class="pilha">Python · Node.js · PostgreSQL · Next.js</div>
+        </article>
+
+        <article class="caso surge" style="--i:2">
+          <header>
+            <h3>Okina</h3>
+            <span class="setor">Produto próprio · clínicas de psicologia</span>
+          </header>
+          <dl>
+            <div><dt>O problema</dt><dd>Marcação por WhatsApp, uma conversa de cada vez, com remarcação e falta resolvidas na base do lembrete manual.</dd></div>
+            <div><dt>O que construímos</dt><dd>Página pública por profissional com os horários livres, agendamento pelo próprio paciente e confirmação automática.</dd></div>
+            <div><dt>O que ela resolve</dt><dd>O horário é preenchido sem ninguém do outro lado. A agenda deixa de depender de quem responde a mensagem.</dd></div>
+          </dl>
+          <div class="pilha">Next.js · React · TypeScript · Supabase</div>
+        </article>
+
+        <article class="caso surge" style="--i:3">
+          <header>
+            <h3>Gestão industrial</h3>
+            <span class="setor">Entregue a empresa · uso diário</span>
+          </header>
+          <dl>
+            <div><dt>O problema</dt><dd>Apontamento de produção no papel, digitado depois por outra pessoa. O número do chão de fábrica chegava à gestão com dias de atraso.</dd></div>
+            <div><dt>O que construímos</dt><dd>Módulos de pessoas, produção e apontamento de fábrica ligados à base da empresa, com registro no momento em que a coisa acontece.</dd></div>
+            <div><dt>O que mudou</dt><dd>A digitação em duplicata acabou e o relatório de produção deixou de ser uma tarefa — passou a ser uma tela.</dd></div>
+          </dl>
+          <div class="pilha">React · TypeScript · Go · SQL</div>
+        </article>
+
+        <article class="caso surge" style="--i:4">
+          <header>
+            <h3>Plataformas para gestoras de investimento</h3>
+            <span class="setor">Entregue a empresa · mercado financeiro</span>
+          </header>
+          <dl>
+            <div><dt>O problema</dt><dd>Carteira e posição fechadas em planilhas, com regra de cálculo na cabeça de quem monta. Erro só aparecia quando o cliente perguntava.</dd></div>
+            <div><dt>O que construímos</dt><dd>Sistemas de gestão e relatório com as regras do setor dentro do código, conferência automática e trilha de tudo que foi calculado.</dd></div>
+            <div><dt>O que mudou</dt><dd>O relatório sai igual toda vez, e dá para responder de onde veio cada número.</dd></div>
+          </dl>
+          <div class="pilha">React · Node.js · SQL</div>
+        </article>
+      </div>
+
+      <p class="fecho surge">Os dois últimos foram entregues a empresas e são usados todo dia; os três primeiros são produtos nossos, construídos por inteiro. <strong>Todos rodam — e a gente mostra numa call</strong>, tela compartilhada, o sistema de verdade, sem apresentação de slide.</p>
+    </div>
+  </section>
+
+  <section id="duvidas">
+    <div class="env">
+      <div class="cabeca surge">
+        <h2>O que costumam perguntar</h2>
+      </div>
+
+      <div class="duvidas surge">
+        <details>
+          <summary>Quanto custa?</summary>
+          <p>Depende do tamanho do processo, e você fica sabendo antes de decidir: a primeira conversa termina com escopo, prazo e preço fechados, e ela não custa nada. Não trabalhamos com mensalidade obrigatória nem com contrato de fidelidade.</p>
+        </details>
+        <details>
+          <summary>Quanto tempo até eu ver alguma coisa funcionando?</summary>
+          <p>Antes do projeto inteiro ficar pronto. A primeira entrega é a menor versão que já resolve alguma coisa da sua rotina — sua equipe usa e diz o que mudar enquanto ainda é barato mudar.</p>
+        </details>
+        <details>
+          <summary>Eu já tenho um sistema. Vou ter que trocar?</summary>
+          <p>Quase nunca. Na maioria dos casos sai mais barato integrar o que já existe do que substituir: a gente conecta o sistema atual ao resto e resolve o buraco específico que está travando a operação.</p>
+        </details>
+        <details>
+          <summary>Preciso entender de tecnologia para conversar com vocês?</summary>
+          <p>Não. A conversa é sobre o seu processo: quem faz, com que frequência, onde trava. A parte técnica é problema nosso.</p>
+        </details>
+        <details>
+          <summary>O sistema fica no nome de quem?</summary>
+          <p>Da sua empresa. Código, banco e infraestrutura no nome dela, com acesso de administrador seu desde o primeiro dia. Se um dia quiser levar para outro time, leva.</p>
+        </details>
+        <details>
+          <summary>E depois que entrega, vocês somem?</summary>
+          <p>O combinado de suporte entra na proposta, com prazo de resposta escrito. Sistema que ninguém mantém volta a virar planilha em poucos meses — não é do nosso interesse que isso aconteça.</p>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <section class="cta" id="orcamento">
+    <canvas id="mare-cta" aria-hidden="true"></canvas>
+    <div class="env cta__conteudo">
+      <h2 class="surge">Qual processo está comendo o tempo da sua equipe?</h2>
+      <p class="surge" style="--i:1">Conte o que se repete por aí. A gente responde dizendo se dá para automatizar, como faríamos e quanto custaria.</p>
+
+      <form class="fala surge" id="fala" style="--i:2">
+        <div class="dupla">
+          <div>
+            <label for="f-nome">Seu nome</label>
+            <input id="f-nome" name="nome" type="text" autocomplete="name" required>
+          </div>
+          <div>
+            <label for="f-contato">E-mail ou WhatsApp</label>
+            <input id="f-contato" name="contato" type="text" autocomplete="email" required>
+          </div>
+        </div>
+        <div>
+          <label for="f-processo">Qual processo se repete na sua empresa?</label>
+          <textarea id="f-processo" name="processo" required placeholder="Ex.: toda segunda alguém exporta o relatório de vendas e joga numa planilha para a diretoria."></textarea>
+        </div>
+        <button class="btn" type="submit"><span>Enviar para a High Tide</span></button>
+      </form>
+
+      <div class="garantias surge" style="--i:3">
+        <div class="garantia"><b>Preço fechado antes de começar</b>Escopo, prazo e valor definidos na primeira conversa. Sem contador rodando.</div>
+        <div class="garantia"><b>Tudo no nome da sua empresa</b>Código, banco e infraestrutura seus, com seu acesso de administrador.</div>
+        <div class="garantia"><b>Diagnóstico sem custo</b>Se não for caso de automação, a gente diz — e não cobra por essa conversa.</div>
+      </div>
+
+      <p class="contato surge" style="--i:4"><a href="mailto:contato@hightide.site">contato@hightide.site</a> · Baixada Santista, SP · atendemos remoto</p>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="env rodape">
+    <span class="marca">
+      <img class="so-escuro" src="telas/logo-escura.webp" width="524" height="120" alt="High Tide">
+      <img class="so-claro" src="telas/logo-clara.webp" width="524" height="120" alt="" aria-hidden="true">
+    </span>
+    <span>© 2026 High Tide · hightide.site</span>
+  </div>
+</footer>
+
+<script>
+(function () {
+  var raiz = document.documentElement;
+  var calmo = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* ---------- tema ---------- */
+  try {
+    var salvo = localStorage.getItem('ht-tema');
+    if (salvo) raiz.setAttribute('data-theme', salvo);
+  } catch (e) {}
+
+  document.getElementById('tema').addEventListener('click', function () {
+    var claroAgora = raiz.getAttribute('data-theme')
+      ? raiz.getAttribute('data-theme') === 'light'
+      : matchMedia('(prefers-color-scheme: light)').matches;
+    var novo = claroAgora ? 'dark' : 'light';
+    raiz.setAttribute('data-theme', novo);
+    try { localStorage.setItem('ht-tema', novo); } catch (e) {}
+    document.querySelectorAll('canvas').forEach(function (c) { if (c._repaleta) c._repaleta(); });
+  });
+
+  function cor(nome) { return getComputedStyle(raiz).getPropertyValue(nome).trim(); }
+
+  /* ---------- header + régua lateral ---------- */
+  var cabecalho = document.querySelector('header');
+  var mare = document.querySelector('.mare-lateral');
+  // scrollHeight força reflow: mede uma vez e recalcula só quando o layout muda
+  /* Dentro de um visualizador (artifact, iframe, preview) quem rola não é a janela:
+     window.scrollY fica em 0 para sempre. Por isso o header liga por sentinela e o
+     progresso sai da posição do <body>, que vale em qualquer container. */
+  var sentinela = document.getElementById('sentinela');
+  var preso = null;
+  if (sentinela) {
+    new IntersectionObserver(function (its) {
+      var quer = !its[0].isIntersecting;
+      if (quer === preso) return;
+      preso = quer;
+      cabecalho.classList.toggle('preso', quer);
+    }, { threshold: 0 }).observe(sentinela);
+  }
+
+  var agendado = false, camposDeMare = [], yAnterior = null;
+  var ultimoY = 0, percorrivel = 0, rolador = null;
+
+  /* getBoundingClientRect() do <body> por quadro força o layout do documento inteiro
+     (516 ms de reflow num scroll só, medido no trace). A posição é lida no evento,
+     quando o layout ainda está limpo; o rAF depois só ESCREVE. */
+  /* Quem rola muda conforme o contexto: a janela no site publicado, um container no
+     artifact, e em alguns motores o próprio <body>. A posição sai do maior candidato;
+     a altura é medida só em resize/load, porque scrollHeight também custa layout. */
+  function medirAltura() {
+    var raizDoc = document.documentElement, corpo = document.body;
+    percorrivel = Math.max(
+      rolador ? rolador.scrollHeight - rolador.clientHeight : 0,
+      raizDoc.scrollHeight - raizDoc.clientHeight,
+      corpo.scrollHeight - innerHeight,
+      0
+    );
+  }
+
+  function lerPosicao(alvo) {
+    if (alvo && alvo.nodeType === 1 && alvo !== document.documentElement && alvo !== document.body) {
+      if (rolador !== alvo) { rolador = alvo; medirAltura(); }
+      ultimoY = alvo.scrollTop;
+    } else {
+      ultimoY = window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
+    }
+  }
+
+  function pintarMare() {
+    agendado = false;
+    var p = percorrivel > 0 ? Math.min(1, Math.max(0, ultimoY / percorrivel)) : 0;
+    mare.style.setProperty('--p', p.toFixed(3));
+
+    // a mesma leitura alimenta o empurrão das ondas — sem medição extra
+    if (yAnterior !== null && camposDeMare.length) {
+      var forca = Math.max(-1, Math.min(1, (ultimoY - yAnterior) / 90));
+      for (var i = 0; i < camposDeMare.length; i++) {
+        var c = camposDeMare[i];
+        c._empurrao = Math.max(-1.4, Math.min(1.4, c._empurrao + forca));
+      }
+    }
+    yAnterior = ultimoY;
+  }
+
+  function aoRolar(ev) {
+    lerPosicao(ev && ev.target);
+    if (agendado) return;
+    agendado = true;
+    requestAnimationFrame(pintarMare);
+  }
+  // capture pega também o scroll de um container que não seja a janela
+  addEventListener('scroll', aoRolar, { passive: true, capture: true });
+  addEventListener('resize', function () { medirAltura(); lerPosicao(rolador); }, { passive: true });
+  addEventListener('load', function () { medirAltura(); lerPosicao(rolador); });
+  medirAltura();
+  lerPosicao(null);
+  pintarMare();
+
+  /* ---------- entrada por scroll ---------- */
+  // 1º passe: promove a camada com folga, antes de o item entrar
+  var prepara = new IntersectionObserver(function (itens) {
+    itens.forEach(function (it) {
+      if (!it.isIntersecting) return;
+      it.target.classList.add('pronta');
+      prepara.unobserve(it.target);
+    });
+  }, { rootMargin: '0px 0px 500px 0px' });
+
+  // 2º passe: dispara a entrada e devolve a camada assim que termina
+  var olho = new IntersectionObserver(function (itens) {
+    itens.forEach(function (it) {
+      if (!it.isIntersecting) return;
+      var el = it.target;
+      el.classList.add('dentro');
+      olho.unobserve(el);
+      el.addEventListener('transitionend', function limpa(ev) {
+        if (ev.propertyName !== 'opacity') return;
+        el.classList.remove('pronta');
+        el.removeEventListener('transitionend', limpa);
+      });
+    });
+  }, { rootMargin: '0px 0px -12% 0px', threshold: .15 });
+
+  document.querySelectorAll('.surge').forEach(function (el) { prepara.observe(el); olho.observe(el); });
+
+  /* ---------- brilho que segue o ponteiro ---------- */
+  document.querySelectorAll('.caso, .btn').forEach(function (el) {
+    el.addEventListener('pointermove', function (ev) {
+      var r = el.getBoundingClientRect();
+      el.style.setProperty('--mx', (ev.clientX - r.left) + 'px');
+      el.style.setProperty('--my', (ev.clientY - r.top) + 'px');
+    });
+  });
+
+  /* ---------- a conta do trabalho manual ---------- */
+  (function () {
+    var ids = ['pessoas', 'horas', 'custo', 'regra'];
+    var campos = ids.map(function (id) { return document.getElementById(id); });
+    if (campos.indexOf(null) !== -1) return;
+
+    var SEMANAS_UTEIS = 44, JORNADA = 40;
+    var moeda = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+    var numero = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 });
+    var texto = function (id) { return document.getElementById(id); };
+
+    function trilho(el) {
+      el.style.setProperty('--preenchido', ((el.value - el.min) / (el.max - el.min) * 100) + '%');
+    }
+
+    function recalcular() {
+      var pessoas = +campos[0].value, horas = +campos[1].value;
+      var custo = +campos[2].value, regra = +campos[3].value;
+      var horasAno = pessoas * horas * SEMANAS_UTEIS;
+      var total = horasAno * custo;
+      var recupera = total * regra / 100;
+
+      texto('v-pessoas').textContent = pessoas;
+      texto('v-horas').textContent = horas + ' h';
+      texto('v-custo').textContent = moeda.format(custo);
+      texto('v-regra').textContent = regra + '%';
+      texto('v-total').textContent = moeda.format(total);
+      texto('v-detalhe').textContent = numero.format(horasAno) + ' horas — ' +
+        numero.format(horasAno / JORNADA) + ' semanas de uma pessoa em tempo integral';
+      texto('v-recupera').textContent = moeda.format(recupera);
+      texto('v-barra').style.setProperty('--fatia', regra + '%');
+      campos.forEach(trilho);
+
+      return { pessoas: pessoas, horas: horas, custo: custo, total: total, recupera: recupera };
+    }
+
+    campos.forEach(function (c) { c.addEventListener('input', recalcular); });
+    recalcular();
+
+    // o número calculado desce junto para o formulário
+    var levar = document.getElementById('levar-conta');
+    if (levar) levar.addEventListener('click', function () {
+      var d = recalcular();
+      var campo = document.getElementById('f-processo');
+      if (!campo || campo.value.indexOf('Fiz a conta no site') === 0) return;
+      campo.value = 'Fiz a conta no site: ' + d.pessoas + (d.pessoas > 1 ? ' pessoas' : ' pessoa') +
+        ' × ' + d.horas + ' h por semana a ' + moeda.format(d.custo) + '/h dão ' +
+        moeda.format(d.total) + ' por ano.\n\nO processo é: ' + campo.value;
+    });
+  })();
+
+  /* ---------- telas do sistema ---------- */
+  (function () {
+    var TELAS = {
+      painel: {
+        arquivo: 'telas/painel.webp', endereco: 'hightide.site/dashboard',
+        alt: 'Painel com total de agendamentos do mês, status por categoria e ranking de serviços',
+        legenda: 'O fechamento do mês em tela: quantos agendamentos entraram, quantos viraram consulta, quantos caíram e quem mais atendeu. Antes disso, esses números saíam de exportação manual toda vez que alguém perguntava.'
+      },
+      agenda: {
+        arquivo: 'telas/agenda.webp', endereco: 'hightide.site/agendamentos',
+        alt: 'Agenda semanal de vários profissionais com filtros por profissional, paciente, local e tipo de serviço',
+        legenda: 'A semana inteira de todos os profissionais numa tela, filtrando por profissional, paciente, local ou tipo de serviço. O encaixe deixa de depender de quem tem a agenda na cabeça.'
+      },
+      relatorio: {
+        arquivo: 'telas/relatorio.webp', endereco: 'hightide.site/ocupacao',
+        alt: 'Análise de ocupação com taxa geral, profissional mais ocupado e distribuição por hora e por dia',
+        legenda: 'Taxa de ocupação por hora do dia, por dia da semana e por profissional — o número que responde se vale abrir mais um horário, mudar a escala ou contratar mais gente.'
+      },
+      cadastro: {
+        arquivo: 'telas/cadastro.webp', endereco: 'hightide.site/clientes',
+        alt: 'Lista de clientes com busca, filtro por status e por empresa, e exportação',
+        legenda: 'Cadastro central com busca, filtro e exportação. Uma lista só, no lugar da planilha que cada setor mantinha do seu jeito — e que nunca batia entre si.'
+      }
+    };
+
+    var img = document.getElementById('tela');
+    var endereco = document.getElementById('v-url');
+    var legenda = document.getElementById('v-legenda');
+    var abas = document.querySelectorAll('.abas button');
+    if (!img || !abas.length) return;
+
+    abas.forEach(function (aba) {
+      aba.addEventListener('click', function () {
+        var t = TELAS[aba.dataset.tela];
+        if (!t || aba.getAttribute('aria-selected') === 'true') return;
+        abas.forEach(function (o) { o.setAttribute('aria-selected', o === aba ? 'true' : 'false'); });
+        img.classList.add('trocando');
+        var nova = new Image();
+        nova.onload = nova.onerror = function () {
+          img.src = t.arquivo; img.alt = t.alt;
+          endereco.textContent = t.endereco;
+          legenda.textContent = t.legenda;
+          img.classList.remove('trocando');
+        };
+        nova.src = t.arquivo;
+      });
+    });
+
+    // deixa as outras prontas antes de alguém clicar
+    addEventListener('load', function () {
+      Object.keys(TELAS).forEach(function (k) { new Image().src = TELAS[k].arquivo; });
+    });
+  })();
+
+  /* ---------- formulário: monta o e-mail já escrito ---------- */
+  var fala = document.getElementById('fala');
+  if (fala) fala.addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var nome = document.getElementById('f-nome').value.trim();
+    var contato = document.getElementById('f-contato').value.trim();
+    var processo = document.getElementById('f-processo').value.trim();
+    var corpo = 'Nome: ' + nome + '\nContato: ' + contato + '\n\n' + processo + '\n';
+    location.href = 'mailto:contato@hightide.site'
+      + '?subject=' + encodeURIComponent('Orçamento High Tide — ' + nome)
+      + '&body=' + encodeURIComponent(corpo);
+  });
+
+  /* ---------- o fluxo só anima enquanto está na tela ---------- */
+  var svgFluxo = document.querySelector('.fluxo svg');
+  if (svgFluxo && svgFluxo.pauseAnimations) {
+    svgFluxo.pauseAnimations();
+    new IntersectionObserver(function (its) {
+      its.forEach(function (it) {
+        if (calmo) return;
+        if (it.isIntersecting) svgFluxo.unpauseAnimations(); else svgFluxo.pauseAnimations();
+      });
+    }, { threshold: 0 }).observe(svgFluxo);
+  }
+
+  /* ---------- campo de maré: grade de dados que ondula ---------- */
+  function campoDeMare(canvas, opcoes) {
+    var ctx = canvas.getContext('2d');
+    var passo = opcoes.passo, pontos = [], larg = 0, alt = 0, dpr = 1;
+    var ponteiro = { x: -9999, y: -9999 };
+    var nivel = opcoes.nivelInicial;
+    var t = 0, vivo = false, quadro = 0;
+
+    function medir() {
+      dpr = Math.min(devicePixelRatio || 1, 1.5);
+      larg = canvas.clientWidth; alt = canvas.clientHeight;
+      canvas.width = larg * dpr; canvas.height = alt * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      pontos = [];
+      for (var y = -passo; y < alt + passo; y += passo) {
+        for (var x = -passo; x < larg + passo; x += passo) {
+          pontos.push({ x: x, y: y, dx: 0, dy: 0 });
+        }
+      }
+    }
+
+    /* getComputedStyle por quadro custa recalc de estilo: lê uma vez por troca de tema */
+    var paleta = null;
+    function lerPaleta() {
+      paleta = { azul: cor('--azul'), coral: cor('--coral'), sol: cor('--sol'), k: parseFloat(cor('--alfa-campo')) || 1 };
+    }
+    canvas._repaleta = lerPaleta;
+    canvas._empurrao = 0;
+    camposDeMare.push(canvas);
+
+    /* um Path2D por faixa de opacidade: ~10 chamadas de desenho por quadro em vez de milhares */
+    var FAIXAS = 3;
+
+    function pinta(embalo) {
+      embalo = embalo || 0;
+      if (!paleta) lerPaleta();
+      ctx.clearRect(0, 0, larg, alt);
+      var linhaAgua = alt * (1 - nivel), k = paleta.k * (1 + Math.abs(embalo) * 0.35);
+
+      var acima = new Path2D(), fundo = [], fios = [];
+      var i, n;
+      for (i = 0; i < FAIXAS; i++) { fundo.push(new Path2D()); fios.push(new Path2D()); fios.push(new Path2D()); }
+
+      for (i = 0, n = pontos.length; i < n; i++) {
+        var p = pontos[i];
+        var amp = 1 + Math.abs(embalo) * 0.8;
+        var onda = (Math.sin((p.x * 0.008) + t) * 7 + Math.sin((p.x * 0.021) - t * 1.7) * 3.5) * amp;
+        var prof = (p.y - linhaAgua) / alt;
+        if (prof < 0) prof = 0;
+        var alvoY = p.y + onda * (0.35 + prof * 1.6);
+
+        var vx = p.x - ponteiro.x, vy = alvoY - ponteiro.y;
+        var d2 = vx * vx + vy * vy;
+        if (d2 < 26000) {
+          var f = (1 - d2 / 26000) * 26;
+          var d = Math.sqrt(d2) || 1;
+          p.dx += (vx / d) * f * 0.14;
+          p.dy += (vy / d) * f * 0.14;
+        }
+        p.dx *= 0.90; p.dy *= 0.90;
+
+        var px = p.x + p.dx, py = alvoY + p.dy;
+        var submerso = py > linhaAgua;
+        p._px = px; p._py = py; p._sub = submerso;
+
+        if (submerso) {
+          var faixa = prof < .12 ? 0 : (prof < .3 ? 1 : 2);
+          p._f = faixa;
+          fundo[faixa].moveTo(px + 1.9, py);
+          fundo[faixa].arc(px, py, 1.9, 0, 6.2832);
+        } else {
+          p._f = -1;
+          acima.moveTo(px + 1.35, py);
+          acima.arc(px, py, 1.35, 0, 6.2832);
+        }
+      }
+
+      for (i = 0, n = pontos.length - 1; i < n; i++) {
+        var a1 = pontos[i], b1 = pontos[i + 1];
+        if (b1.x < a1.x) continue;
+        var meio = (a1._py + b1._py) * .5;
+        var dist = Math.abs(meio - linhaAgua);
+        if (dist > 150) continue;
+        var perto = 1 - dist / 150;
+        var faixaF = perto < .35 ? 0 : (perto < .7 ? 1 : 2);
+        var alvo = fios[faixaF * 2 + (a1._sub ? 1 : 0)];
+        alvo.moveTo(a1._px, a1._py);
+        alvo.lineTo(b1._px, b1._py);
+      }
+
+      var opPonto = [0.42, 0.68, 1];
+      for (i = 0; i < FAIXAS; i++) {
+        ctx.globalAlpha = Math.min(1, opPonto[i] * k);
+        ctx.fillStyle = paleta.coral;
+        ctx.fill(fundo[i]);
+      }
+      ctx.globalAlpha = Math.min(1, 0.38 * k);
+      ctx.fillStyle = paleta.azul;
+      ctx.fill(acima);
+
+      ctx.lineWidth = 1;
+      var opFio = [0.1, 0.32, 0.66];
+      for (i = 0; i < FAIXAS; i++) {
+        ctx.globalAlpha = Math.min(1, opFio[i] * k);
+        ctx.strokeStyle = paleta.azul; ctx.stroke(fios[i * 2]);
+        ctx.strokeStyle = paleta.sol;  ctx.stroke(fios[i * 2 + 1]);
+      }
+
+      // brilho da própria linha d'água
+      var brilho = ctx.createLinearGradient(0, linhaAgua - 70, 0, linhaAgua + 70);
+      brilho.addColorStop(0, 'transparent');
+      brilho.addColorStop(.5, paleta.coral);
+      brilho.addColorStop(1, 'transparent');
+      ctx.globalAlpha = Math.min(.42, (.12 + Math.abs(embalo) * .1) * k);
+      ctx.fillStyle = brilho;
+      ctx.fillRect(0, linhaAgua - 70, larg, 140);
+      ctx.globalAlpha = 1;
+    }
+
+    /* 40 quadros por segundo bastam para uma onda lenta e devolvem quadros ao scroll */
+    var ultimoQuadro = 0, embalo = 0;
+    function laco(agora) {
+      if (!vivo) return;
+      quadro = requestAnimationFrame(laco);
+      // enquanto o scroll está ativo o quadro é do scroll: a onda pinta a 30fps
+      var rolando = Math.abs(canvas._empurrao) > 0.05;
+      var dt = agora - ultimoQuadro;
+      if (!(dt >= (rolando ? 33 : 24))) return;
+      ultimoQuadro = agora;
+      var passoTempo = Math.min(dt, 50) / 16.7;
+
+      // rolar a página empurra a onda: ela acelera e some devagar, como maré batendo
+      embalo += (canvas._empurrao - embalo) * 0.12;
+      canvas._empurrao *= 0.88;
+      t += (0.011 + Math.abs(embalo) * 0.035) * passoTempo;
+
+      var alvo = opcoes.nivelFinal + embalo * 0.06;
+      nivel += (alvo - nivel) * (nivel < opcoes.nivelFinal - 0.02 ? 0.02 : 0.12) * passoTempo;
+      pinta(embalo);
+    }
+
+    medir();
+    addEventListener('resize', function () { medir(); if (calmo) pinta(0); });
+    canvas.parentElement.addEventListener('pointermove', function (ev) {
+      var r = canvas.getBoundingClientRect();
+      ponteiro.x = ev.clientX - r.left; ponteiro.y = ev.clientY - r.top;
+    });
+    canvas.parentElement.addEventListener('pointerleave', function () { ponteiro.x = ponteiro.y = -9999; });
+
+    if (calmo) { nivel = opcoes.nivelFinal; pinta(0); return; }
+
+    new IntersectionObserver(function (its) {
+      its.forEach(function (it) {
+        if (it.isIntersecting && !vivo) { vivo = true; ultimoQuadro = performance.now() - 24; laco(performance.now()); }
+        else if (!it.isIntersecting && vivo) { vivo = false; cancelAnimationFrame(quadro); }
+      });
+    }, { threshold: 0 }).observe(canvas);
+  }
+
+  campoDeMare(document.getElementById('campo'), { passo: 34, nivelInicial: 0, nivelFinal: 0.42 });
+  campoDeMare(document.getElementById('mare-cta'), { passo: 32, nivelInicial: 0.2, nivelFinal: 0.72 });
+})();
+</script>

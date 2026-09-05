@@ -1,0 +1,250 @@
+<meta charset="utf-8">
+<title>Testes — núcleo do gerador de documentos</title>
+<style>
+  body { font: 14px/1.5 ui-monospace, monospace; background: #0B1124; color: #EAEFFF; padding: 2rem; }
+  h1 { font-size: 1.1rem; }
+  .ok { color: #4FD8E8; }
+  .falha { color: #FF6B5A; }
+  li { margin: .15rem 0; }
+  #placar { margin: 1rem 0; padding: .8rem 1rem; border: 1px solid #2E3D6E; border-radius: 8px; }
+</style>
+
+<h1>Núcleo do gerador de documentos</h1>
+<div id="placar">rodando…</div>
+<ul id="lista"></ul>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="nucleo.js"></script>
+<script>
+(function () {
+  var casos = [], falhas = [];
+
+  function teste(nome, fn) { casos.push({ nome: nome, fn: fn }); }
+  function igual(a, b, o) {
+    if (a !== b) throw new Error((o || '') + ' esperado ' + JSON.stringify(b) + ', veio ' + JSON.stringify(a));
+  }
+  function verdade(v, o) { if (!v) throw new Error(o || 'esperava verdadeiro'); }
+  function contem(texto, trecho, o) {
+    if (String(texto).indexOf(trecho) < 0) throw new Error((o || '') + ' não contém ' + JSON.stringify(trecho));
+  }
+
+  function dados() {
+    return {
+      emissor: { nome: 'REFRIGERACAO MARE ALTA LTDA', doc: '91847263000158', endereco: 'Rua Xavier da Silveira, 412 - Santos/SP', contato: '(13) 99123-4567 · contato@marealta.com.br' },
+      cliente: { nome: 'CLINICA ODONTO ENSEADA LTDA', doc: '92735184000104', endereco: 'Av. Ana Costa, 300 - Santos/SP' },
+      itens: [
+        { descricao: 'Instalação de ar-condicionado split 12.000 BTU', qtd: 3, un: 'un', unitario: 650 },
+        { descricao: 'Limpeza e higienização de evaporadora', qtd: 5, un: 'un', unitario: 180 },
+        { descricao: 'Deslocamento', qtd: 1, un: 'vb', unitario: 120 }
+      ],
+      desconto: 150,
+      data: '2026-09-04',
+      cidade: 'Santos',
+      validade: 15,
+      prazo: '5 dias úteis após a aprovação',
+      pagamento: '50% na aprovação e 50% na conclusão, via Pix ou boleto',
+      observacoes: 'Garantia de 90 dias sobre a mão de obra.',
+      sequencia: 7
+    };
+  }
+
+  /* ---------------- por extenso ---------------- */
+
+  var EXTENSO = [
+    [0, 'zero reais'],
+    [1, 'um real'],
+    [2, 'dois reais'],
+    [0.5, 'cinquenta centavos'],
+    [0.01, 'um centavo'],
+    [1.01, 'um real e um centavo'],
+    [21, 'vinte e um reais'],
+    [100, 'cem reais'],
+    [101, 'cento e um reais'],
+    [200, 'duzentos reais'],
+    [1000, 'mil reais'],
+    [1001, 'mil e um reais'],
+    [1100, 'mil e cem reais'],
+    [1250, 'mil duzentos e cinquenta reais'],
+    [2500, 'dois mil e quinhentos reais'],
+    [12388.8, 'doze mil trezentos e oitenta e oito reais e oitenta centavos'],
+    [100000, 'cem mil reais'],
+    [100100, 'cem mil e cem reais'],
+    [123456.78, 'cento e vinte e três mil quatrocentos e cinquenta e seis reais e setenta e oito centavos'],
+    [1000000, 'um milhão de reais'],
+    [1000020, 'um milhão e vinte reais'],
+    [2000000, 'dois milhões de reais'],
+    [1320000, 'um milhão trezentos e vinte mil reais'],
+    [1000000000, 'um bilhão de reais'],
+    [3200.005, 'três mil e duzentos reais e um centavo'],
+    [19.999, 'vinte reais']
+  ];
+  EXTENSO.forEach(function (par) {
+    teste('por extenso: ' + par[0], function () { igual(DOCS.porExtenso(par[0]), par[1]); });
+  });
+
+  /* ---------------- formatação ---------------- */
+
+  teste('data por extenso', function () {
+    igual(DOCS.dataPorExtenso('2026-09-04'), '4 de setembro de 2026');
+    igual(DOCS.dataPorExtenso('2026-01-31'), '31 de janeiro de 2026');
+  });
+
+  teste('valor e documento no padrão brasileiro', function () {
+    igual(DOCS.formatarValor(3200), '3.200,00');
+    igual(DOCS.formatarDoc('91847263000158'), '91.847.263/0001-58');
+    igual(DOCS.formatarDoc('48273916502'), '482.739.165-02');
+    igual(DOCS.formatarDoc('abc'), 'abc', 'texto livre passa como está');
+  });
+
+  teste('numeração por tipo e ano', function () {
+    igual(DOCS.numero('proposta', '2026-09-04', 7), 'PROP-2026-0007');
+    igual(DOCS.numero('os', '2026-09-04', 12), 'OS-2026-0012');
+    igual(DOCS.numero('recibo', '2027-02-01', 1234), 'REC-2027-1234');
+  });
+
+  /* ---------------- totais e validação ---------------- */
+
+  teste('totais somam os itens e aplicam o desconto', function () {
+    var t = DOCS.totais(dados().itens, 150);
+    igual(t.subtotal, 2970, 'subtotal');
+    igual(t.desconto, 150, 'desconto');
+    igual(t.total, 2820, 'total');
+    igual(t.itens[0].subtotal, 1950, 'subtotal do item');
+  });
+
+  teste('totais ignoram linha vazia e desconto maior que o subtotal', function () {
+    var t = DOCS.totais([{ descricao: '', qtd: 0, unitario: 0 }, { descricao: 'x', qtd: 2, unitario: 10.5 }], 999);
+    igual(t.subtotal, 21, 'subtotal');
+    igual(t.itens.length, 1, 'linha vazia fora');
+    igual(t.total, 0, 'total não fica negativo');
+  });
+
+  teste('validação aponta o que falta', function () {
+    igual(DOCS.validar(dados()).length, 0, 'dados completos passam');
+    var d = dados(); d.emissor.nome = ''; d.cliente.nome = '  '; d.itens = [];
+    var erros = DOCS.validar(d);
+    igual(erros.length, 3, 'três faltas: ' + erros.join(' | '));
+    verdade(/emissor|sua empresa/i.test(erros[0]), 'cita a empresa: ' + erros[0]);
+  });
+
+  /* ---------------- montar modelo ---------------- */
+
+  teste('proposta: modelo traz número, partes, tabela, condições e assinaturas', function () {
+    var m = DOCS.montar('proposta', dados());
+    igual(m.titulo, 'Proposta comercial');
+    igual(m.numero, 'PROP-2026-0007');
+    igual(m.emissor.nome, 'REFRIGERACAO MARE ALTA LTDA');
+    igual(m.cliente.doc, '92.735.184/0001-04', 'documento do cliente pontuado');
+    var tabela = m.blocos.filter(function (b) { return b.tipo === 'tabela'; })[0];
+    verdade(tabela, 'tem tabela');
+    igual(tabela.linhas.length, 3, 'três itens');
+    igual(tabela.linhas[0][3], '1.950,00', 'subtotal do item formatado');
+    igual(tabela.totais[tabela.totais.length - 1][1], 'R$ 2.820,00', 'total com desconto');
+    var campos = m.blocos.filter(function (b) { return b.tipo === 'campos'; })[0];
+    var validade = campos.itens.filter(function (c) { return c[0] === 'Validade'; })[0];
+    contem(validade[1], '19/09/2026', 'validade calculada a partir da data');
+    var ass = m.blocos.filter(function (b) { return b.tipo === 'assinaturas'; })[0];
+    igual(ass.linhas.length, 2, 'duas assinaturas');
+  });
+
+  teste('ordem de serviço: mesmo dado, outro documento', function () {
+    var m = DOCS.montar('os', dados());
+    igual(m.titulo, 'Ordem de serviço');
+    igual(m.numero, 'OS-2026-0007');
+    verdade(m.blocos.some(function (b) { return b.tipo === 'tabela'; }), 'tem tabela');
+    var campos = m.blocos.filter(function (b) { return b.tipo === 'campos'; })[0];
+    verdade(campos.itens.some(function (c) { return /prazo/i.test(c[0]); }), 'tem prazo de execução');
+    verdade(!campos.itens.some(function (c) { return /validade/i.test(c[0]); }), 'OS não tem validade');
+  });
+
+  teste('recibo: valor por extenso, referente aos itens, uma assinatura', function () {
+    var m = DOCS.montar('recibo', dados());
+    igual(m.titulo, 'Recibo');
+    igual(m.numero, 'REC-2026-0007');
+    var texto = m.blocos.filter(function (b) { return b.tipo === 'texto'; }).map(function (b) { return b.paragrafos.join(' '); }).join(' ');
+    contem(texto, 'R$ 2.820,00');
+    contem(texto, 'dois mil oitocentos e vinte reais');
+    contem(texto, 'CLINICA ODONTO ENSEADA LTDA');
+    contem(texto, 'Instalação de ar-condicionado');
+    contem(texto, 'Santos, 4 de setembro de 2026');
+    verdade(!m.blocos.some(function (b) { return b.tipo === 'tabela'; }), 'recibo não tem tabela');
+    igual(m.blocos.filter(function (b) { return b.tipo === 'assinaturas'; })[0].linhas.length, 1, 'só quem recebe assina');
+  });
+
+  teste('sem desconto a tabela não mostra linha de desconto', function () {
+    var d = dados(); d.desconto = 0;
+    var tabela = DOCS.montar('proposta', d).blocos.filter(function (b) { return b.tipo === 'tabela'; })[0];
+    igual(tabela.totais.length, 1, 'só o total');
+  });
+
+  teste('observações vazias não geram bloco', function () {
+    var d = dados(); d.observacoes = '';
+    var m = DOCS.montar('proposta', d);
+    verdade(!m.blocos.some(function (b) { return b.titulo === 'Observações'; }), 'sem bloco de observações');
+  });
+
+  /* ---------------- HTML ---------------- */
+
+  teste('HTML do preview traz o conteúdo e escapa marcação', function () {
+    var d = dados(); d.cliente.nome = 'CLIENTE <b>MALICIOSO</b> & CIA';
+    var html = DOCS.html(DOCS.montar('proposta', d));
+    contem(html, 'PROP-2026-0007');
+    contem(html, 'CLIENTE &lt;b&gt;MALICIOSO&lt;/b&gt; &amp; CIA');
+    verdade(html.indexOf('<b>MALICIOSO') < 0, 'não injeta HTML');
+    contem(html, '1.950,00');
+  });
+
+  /* ---------------- PDF ---------------- */
+
+  teste('PDF é gerado com o número do documento dentro', function () {
+    var pdf = DOCS.gerarPDF(DOCS.montar('proposta', dados()), window.jspdf);
+    var bruto = pdf.output();
+    igual(bruto.slice(0, 4), '%PDF', 'começa como PDF');
+    contem(bruto, 'PROP-2026-0007', 'número do documento no conteúdo');
+    verdade(pdf.internal.getNumberOfPages() >= 1, 'tem página');
+  });
+
+  teste('PDF do recibo cabe numa página e o da proposta com 40 itens quebra página', function () {
+    var d = dados();
+    igual(DOCS.gerarPDF(DOCS.montar('recibo', d), window.jspdf).internal.getNumberOfPages(), 1);
+    for (var i = 0; i < 40; i++) d.itens.push({ descricao: 'Item extra ' + i + ' com descrição longa o bastante para quebrar linha na coluna', qtd: 1, un: 'un', unitario: 10 });
+    verdade(DOCS.gerarPDF(DOCS.montar('proposta', d), window.jspdf).internal.getNumberOfPages() >= 2, 'quebrou página');
+  });
+
+  /* ---------------- exemplo ---------------- */
+
+  teste('dados de exemplo passam na validação e geram os três documentos', function () {
+    var d = DOCS.exemplo();
+    igual(DOCS.validar(d).length, 0, 'exemplo válido');
+    ['proposta', 'os', 'recibo'].forEach(function (t) {
+      var m = DOCS.montar(t, d);
+      verdade(m.numero && m.titulo && m.blocos.length >= 3, t + ' monta');
+    });
+  });
+
+  /* ---------------- execução ---------------- */
+
+  var lista = document.getElementById('lista');
+  casos.forEach(function (c) {
+    var li = document.createElement('li');
+    try {
+      c.fn();
+      li.className = 'ok';
+      li.textContent = 'ok   ' + c.nome;
+    } catch (e) {
+      li.className = 'falha';
+      li.textContent = 'FALHA ' + c.nome + ' — ' + e.message;
+      falhas.push(c.nome + ' — ' + e.message);
+    }
+    lista.appendChild(li);
+  });
+
+  var placar = falhas.length
+    ? falhas.length + ' de ' + casos.length + ' FALHARAM'
+    : casos.length + ' casos, todos verdes';
+  document.getElementById('placar').textContent = placar;
+  document.getElementById('placar').className = falhas.length ? 'falha' : 'ok';
+  window.__resultado = { total: casos.length, falhas: falhas };
+})();
+</script>

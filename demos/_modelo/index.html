@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<title>Modelo — High Tide</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Esqueleto das demos High Tide: entrada de arquivo, resultado com números, tabela e exportação. Tudo lido no seu navegador — nada é enviado.">
+<link rel="icon" type="image/png" href="../../telas/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,600..800&family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../comum/base.css">
+
+<style>
+  /* CSS específico da demo */
+</style>
+
+<body data-demo="modelo">
+
+<header>
+  <div class="env barra">
+    <a class="marca" href="https://hightide.site/" aria-label="High Tide, voltar ao site">
+      <img class="so-escuro" src="../../telas/logo-escura.webp" width="524" height="120" alt="High Tide">
+      <img class="so-claro" src="../../telas/logo-clara.webp" width="524" height="120" alt="" aria-hidden="true">
+      <small>Nome da demo</small>
+    </a>
+    <nav>
+      <a class="item" href="https://hightide.site/">Voltar ao site</a>
+      <button class="tema" id="tema" type="button" aria-label="Alternar tema claro e escuro">
+        <svg class="sol" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4"/></svg>
+        <svg class="lua" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z"/></svg>
+      </button>
+      <a class="btn" href="https://hightide.site/#orcamento">Pedir orçamento</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section class="abertura env" id="abertura">
+    <div class="abertura__grade">
+    <div class="abertura__texto">
+    <h1>A frase que promete o resultado, sem jargão.</h1>
+    <p class="lead">Uma linha dizendo o que entra, o que sai e por que isso poupa a tarde de alguém. Curta, direta, no tom de quem já resolveu o problema.</p>
+    <p class="local">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+      <span><b>Nada sai do seu navegador.</b> Os arquivos são lidos aqui, na sua máquina, e não são enviados a servidor nenhum — nem ao nosso.</span>
+    </p>
+    </div>
+    <aside class="entra-sai" aria-label="O que entra e o que sai">
+      <div class="entra"><span class="rotulo">Entra</span><ul>
+        <li>O arquivo que a pessoa já tem em mãos</li>
+        <li>De onde ele costuma vir</li>
+        <li>Sem cadastro e sem enviar nada</li>
+      </ul></div>
+      <span class="seta" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v16M6 14l6 6 6-6"/></svg></span>
+      <div class="sai"><span class="rotulo">Sai</span><ul>
+        <li>O número que responde a pergunta</li>
+        <li>A tabela com o detalhe</li>
+        <li>CSV pronto para o Excel</li>
+      </ul></div>
+    </aside>
+    </div>
+
+    <div class="solta" id="solta" tabindex="0" role="button" aria-label="Área para soltar arquivos">
+      <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M6 14a3 3 0 0 1 3-3h9l4 4h17a3 3 0 0 1 3 3v19a3 3 0 0 1-3 3H9a3 3 0 0 1-3-3Z"/>
+        <path d="M24 34V22M18.5 27.5 24 22l5.5 5.5"/>
+      </svg>
+      <h2><span class="so-mouse">Solte aqui o arquivo ou a pasta inteira</span><span class="so-toque">Toque para escolher o arquivo</span></h2>
+      <p class="ou so-mouse">ou <button type="button" id="escolher">escolher arquivos</button> · <button type="button" id="escolher-pasta">escolher uma pasta</button></p>
+      <p class="aceita">CSV, XLSX ou XLS exportados do seu sistema. Outros arquivos que estiverem junto são ignorados.</p>
+      <p class="andamento" id="andamento" hidden></p>
+      <div class="exemplo">
+        <span>Não tem um arquivo à mão?</span>
+        <button class="btn discreto" type="button" id="exemplo">Ver com dados de exemplo</button>
+      </div>
+      <input type="file" id="entrada" multiple accept=".csv,.txt,.tsv,.xlsx,.xls" hidden>
+      <input type="file" id="entrada-pasta" webkitdirectory hidden>
+    </div>
+  </section>
+
+  <section class="resultado env" id="resultado" hidden>
+    <div class="lida">
+      <div class="avisos" id="lida"></div>
+      <button class="btn discreto" type="button" id="outra">Ler outro arquivo</button>
+    </div>
+
+    <div id="corpo">
+      <div class="painel">
+        <h2 class="resumo" id="resumo"></h2>
+        <div class="regua" id="regua" aria-label="Como as linhas se dividem">
+          <div class="regua__barra" id="regua-barra"></div>
+          <div class="regua__legenda" id="regua-legenda"></div>
+        </div>
+      </div>
+
+      <div class="kpis" id="kpis"></div>
+
+      <div class="ferramentas">
+        <label class="busca">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <input type="search" id="busca" placeholder="Filtrar a tabela" aria-label="Filtrar a tabela">
+        </label>
+        <div class="exportar">
+          <button class="btn discreto" type="button" id="baixar">Baixar CSV</button>
+          <button class="btn discreto" type="button" id="copiar">Copiar tabela</button>
+          <span class="copiado" id="copiado" hidden></span>
+        </div>
+      </div>
+
+      <div class="rolagem">
+        <table id="tabela">
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>Situação</th>
+              <th class="num">Valor (R$)</th>
+            </tr>
+          </thead>
+          <tbody id="linhas"></tbody>
+          <tfoot><tr><td colspan="2" id="rodape-nota"></td><td class="num" id="rodape-total"></td></tr></tfoot>
+        </table>
+      </div>
+    </div>
+
+    <div class="aviso-vazio" id="vazio" hidden></div>
+
+    <div class="fecho"><div class="fecho__grade">
+      <div>
+      <h2>Quer isso rodando toda semana, sozinho, com os seus dados?</h2>
+      <p>Esta é uma amostra. Na sua empresa, a rotina roda sozinha no horário combinado, lê de onde o dado já está e entrega no sistema que você usa — sem ninguém digitar.</p>
+      <a class="btn" href="https://hightide.site/#orcamento">Conversar com a High Tide</a>
+      </div>
+      <aside class="outras" id="outras" aria-label="Outras amostras"></aside>
+    </div></div>
+  </section>
+</main>
+
+<footer>
+  <div class="env rodape">
+    <span class="marca">
+      <img class="so-escuro" src="../../telas/logo-escura.webp" width="524" height="120" alt="High Tide">
+      <img class="so-claro" src="../../telas/logo-clara.webp" width="524" height="120" alt="" aria-hidden="true">
+    </span>
+    <span>© 2026 High Tide · hightide.site</span>
+  </div>
+</footer>
+
+<script src="../comum/comum.js"></script>
+<script src="../comum/chrome.js"></script>
+<!-- aqui entra a tag de script do nucleo.js da demo, antes do script inline -->
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function plural(n, um, muitos) { return n + ' ' + (n === 1 ? um : muitos); }
+
+  var solta = $('solta'), andamento = $('andamento');
+
+  function avisarSolta(msg, erro) {
+    andamento.hidden = false;
+    andamento.className = 'andamento' + (erro ? ' erro' : '');
+    andamento.textContent = msg;
+  }
+
+  HT.soltar({
+    area: solta,
+    entrada: $('entrada'),
+    entradaPasta: $('entrada-pasta'),
+    aoReceber: function (files) {
+      solta.classList.add('lendo');
+      avisarSolta('Lendo ' + files[0].name + '…');
+      HT.lerTabela(files[0]).then(function (tabela) {
+        andamento.hidden = true;
+        $('lida').innerHTML = '<span><b>' + esc(tabela.nome) + '</b></span>' +
+          '<span>' + esc(plural(tabela.linhas.length, 'linha', 'linhas')) + '</span>' +
+          '<span>' + esc(plural(tabela.cabecalho.length, 'coluna', 'colunas')) + '</span>';
+        HT.mostrarResultado();
+      }, function (e) {
+        avisarSolta('Não deu para ler: ' + (e && e.message ? e.message : e), true);
+      }).then(function () { solta.classList.remove('lendo'); });
+    }
+  });
+
+  $('escolher').addEventListener('click', function () { $('entrada').click(); });
+  $('escolher-pasta').addEventListener('click', function () { $('entrada-pasta').click(); });
+
+  var FAIXAS = [
+    { chave: 'ok', rotulo: 'Em dia', cor: 'var(--ciano)', n: 1, valor: 5200 },
+    { chave: 'alerta', rotulo: 'Para conferir', cor: 'var(--sol)', n: 1, valor: 3200 },
+    { chave: 'erro', rotulo: 'Com problema', cor: 'var(--coral)', n: 1, valor: 1250 }
+  ];
+  var EXEMPLO = [
+    { item: 'Primeira linha do exemplo', situacao: 'ok', etiqueta: 'em dia', valor: '5.200,00' },
+    { item: 'Segunda linha do exemplo', situacao: 'alerta', etiqueta: 'conferir', valor: '3.200,00' },
+    { item: 'Terceira linha do exemplo', situacao: 'erro', etiqueta: 'problema', valor: '1.250,00' }
+  ];
+
+  function renderKpis() {
+    var kpis = [
+      ['Linhas lidas', '3', 'de um arquivo de exemplo'],
+      ['Total', 'R$ 9.650,00', 'somando as três'],
+      ['Com problema', '1', 'precisa de olho humano']
+    ];
+    $('kpis').innerHTML = kpis.map(function (k) {
+      return '<div class="kpi">' + esc(k[0]) + '<b>' + esc(k[1]) + '</b><small>' + esc(k[2]) + '</small></div>';
+    }).join('');
+  }
+
+  function renderRegua() {
+    var soma = FAIXAS.reduce(function (s, f) { return s + f.valor; }, 0) || 1;
+    $('regua-barra').innerHTML = FAIXAS.map(function (f, i) {
+      return '<i data-faixa="' + esc(f.chave) + '" style="--cor:' + f.cor + ';flex-basis:' +
+        (f.valor / soma * 100).toFixed(2) + '%;animation-delay:' + (i * 90) + 'ms" title="' + esc(f.rotulo) + '"></i>';
+    }).join('');
+    $('regua-legenda').innerHTML = FAIXAS.map(function (f) {
+      return '<div data-faixa="' + esc(f.chave) + '" style="--cor:' + f.cor + '">' + esc(f.rotulo) +
+        '<b>R$ ' + esc(f.valor.toFixed(2).replace('.', ',')) + '</b><small>' +
+        esc(plural(f.n, 'linha', 'linhas')) + '</small></div>';
+    }).join('');
+  }
+
+  function renderTabela() {
+    $('linhas').innerHTML = EXEMPLO.map(function (l, i) {
+      return '<tr class="linha" style="--i:' + i + '">' +
+        '<td class="titulo">' + esc(l.item) + '<small>detalhe secundário da linha</small></td>' +
+        '<td><span class="rot">Situação</span><span class="tag ' + esc(l.situacao) + '">' + esc(l.etiqueta) + '</span></td>' +
+        '<td class="num"><span class="rot">Valor</span>' + esc(l.valor) + '</td>' +
+        '</tr>';
+    }).join('');
+    $('rodape-nota').textContent = plural(EXEMPLO.length, 'linha', 'linhas');
+    $('rodape-total').textContent = '9.650,00';
+  }
+
+  function paraExportar() {
+    return [['Item', 'Situação', 'Valor']].concat(EXEMPLO.map(function (l) {
+      return [l.item, l.etiqueta, l.valor];
+    }));
+  }
+
+  $('exemplo').addEventListener('click', function () {
+    andamento.hidden = true;
+    $('lida').innerHTML = '<span><b>dados de exemplo</b></span><span>' + esc(plural(EXEMPLO.length, 'linha', 'linhas')) + '</span>';
+    $('resumo').innerHTML = '<span class="valor">R$ 9.650,00</span> em ' + esc(plural(EXEMPLO.length, 'linha', 'linhas')) +
+      '.<small>A frase que resume o achado principal.</small>';
+    renderKpis();
+    renderRegua();
+    renderTabela();
+    $('corpo').hidden = false;
+    $('vazio').hidden = true;
+    HT.mostrarResultado();
+  });
+
+  $('outra').addEventListener('click', function () {
+    $('busca').value = '';
+    filtrar();
+    HT.voltar();
+  });
+
+  function filtrar() {
+    var termo = $('busca').value.trim().toLowerCase();
+    Array.prototype.slice.call($('linhas').children).forEach(function (tr) {
+      tr.hidden = termo !== '' && tr.textContent.toLowerCase().indexOf(termo) < 0;
+    });
+  }
+  $('busca').addEventListener('input', filtrar);
+
+  $('baixar').addEventListener('click', function () {
+    HT.baixar('exemplo.csv', COMUM.csv(paraExportar()));
+  });
+
+  $('copiar').addEventListener('click', function () {
+    HT.copiar(COMUM.tsv(paraExportar())).then(function (ok) {
+      HT.avisar($('copiado'), ok ? 'Copiado — cole na planilha.' : 'Não deu para copiar — selecione a tabela e use Ctrl+C.', ok ? 2500 : 5000);
+    });
+  });
+
+  HT.iniciar();
+})();
+</script>

@@ -1,0 +1,984 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<title>Extrator de NF-e — High Tide</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Arraste os XMLs de NF-e e receba fornecedor, CNPJ, valor e vencimento numa tabela e num CSV. Tudo lido no seu navegador — nada é enviado.">
+<link rel="icon" type="image/png" href="../../telas/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,600..800&family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+
+<style>
+  /* ================= tokens — os mesmos da landing ================= */
+  :root {
+    --fundo:      #070B18;
+    --fundo-2:    #0B1124;
+    --superficie: #101A38;
+    --tinta:      #EAEFFF;
+    --tinta-mid:  #99A5D0;
+    --linha:      #1E2A52;
+    --linha-forte:#2E3D6E;
+    --coral:      #FF6B5A;
+    --coral-luz:  #FF8E7F;
+    --azul:       #7C8CFF;
+    --azul-fundo: #2B3A8F;
+    --ciano:      #4FD8E8;
+    --sol:        #FFB443;
+    --grade: radial-gradient(circle, color-mix(in srgb, var(--azul) 26%, transparent) .9px, transparent .9px);
+    color-scheme: dark;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --fundo:      #EDF1FD;
+      --fundo-2:    #DEE6FB;
+      --superficie: #FFFFFF;
+      --tinta:      #050B22;
+      --tinta-mid:  #3E4B7E;
+      --linha:      #C6D2F0;
+      --linha-forte:#9EAFE0;
+      --coral:      #D93A22;
+      --coral-luz:  #EE5236;
+      --azul:       #2C3DB4;
+      --azul-fundo: #B2BFF3;
+      --ciano:      #04697F;
+      --sol:        #B36A00;
+      color-scheme: light;
+    }
+  }
+  :root[data-theme="light"] {
+    --fundo:      #EDF1FD;
+    --fundo-2:    #DEE6FB;
+    --superficie: #FFFFFF;
+    --tinta:      #050B22;
+    --tinta-mid:  #3E4B7E;
+    --linha:      #C6D2F0;
+    --linha-forte:#9EAFE0;
+    --coral:      #D93A22;
+    --coral-luz:  #EE5236;
+    --azul:       #2C3DB4;
+    --azul-fundo: #B2BFF3;
+    --ciano:      #04697F;
+    --sol:        #B36A00;
+    color-scheme: light;
+  }
+
+  /* ================= base ================= */
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh;
+    background: var(--grade) 0 0 / 30px 30px, var(--fundo);
+    color: var(--tinta);
+    font-family: Archivo, ui-sans-serif, system-ui, sans-serif;
+    font-size: 17px; line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+  h1, h2 {
+    font-family: "Bricolage Grotesque", Archivo, ui-sans-serif, sans-serif;
+    font-weight: 800; letter-spacing: -0.035em; line-height: 1.03; margin: 0; text-wrap: balance;
+  }
+  p { margin: 0; max-width: 68ch; }
+  a { color: inherit; }
+  button { font: inherit; color: inherit; }
+  input { min-width: 0; }
+  /* no celular não existe arrastar e "escolher pasta" não funciona no iOS: a área vira botão */
+  .so-toque { display: none; }
+  .rot { display: none; }
+  @media (hover: none) and (pointer: coarse) {
+    .so-mouse { display: none; }
+    .so-toque { display: inline; }
+    .solta { cursor: pointer; }
+  }
+  :focus-visible { outline: 2px solid var(--ciano); outline-offset: 4px; border-radius: 3px; }
+  .env { width: min(1180px, 100% - 2.5rem); margin-inline: auto; }
+  .mono { font-family: "JetBrains Mono", ui-monospace, monospace; }
+  [hidden] { display: none !important; }
+
+  /* ================= topo ================= */
+  body > header {
+    position: sticky; top: 0; z-index: 10; padding: .7rem 0;
+    background: color-mix(in srgb, var(--fundo) 92%, transparent);
+    backdrop-filter: blur(8px); border-bottom: 1px solid var(--linha);
+  }
+  .barra { display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; }
+  .marca { display: flex; align-items: center; gap: .9rem; text-decoration: none; }
+  .marca img { height: 40px; width: auto; }
+  .marca img.so-escuro { display: block; }
+  .marca img.so-claro  { display: none; }
+  :root[data-theme="light"] .marca img.so-claro  { display: block; }
+  :root[data-theme="light"] .marca img.so-escuro { display: none; }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) .marca img.so-claro  { display: block; }
+    :root:not([data-theme="dark"]) .marca img.so-escuro { display: none; }
+  }
+  .marca small { padding-left: .9rem; border-left: 1px solid var(--linha-forte); font-size: .88rem; color: var(--tinta-mid); }
+  nav { display: flex; align-items: center; gap: 1.2rem; }
+  nav a.item { text-decoration: none; color: var(--tinta-mid); font-size: .93rem; font-weight: 500; }
+  nav a.item:hover { color: var(--tinta); }
+
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: .5rem;
+    padding: .7rem 1.3rem; border: 0; border-radius: 999px; cursor: pointer;
+    background: var(--coral); color: #FFF4F1;
+    font: 600 .95rem/1 Archivo, sans-serif; text-decoration: none;
+    box-shadow: 0 8px 30px -12px var(--coral);
+    transition: transform .2s cubic-bezier(.2,.7,.3,1), box-shadow .2s;
+  }
+  .btn:hover { transform: translateY(-2px); box-shadow: 0 14px 40px -14px var(--coral); }
+  .btn.discreto { background: transparent; color: var(--tinta); border: 1px solid var(--linha-forte); box-shadow: none; }
+  .btn.discreto:hover { border-color: var(--ciano); color: var(--ciano); }
+  .btn:disabled { opacity: .5; cursor: default; transform: none; }
+
+  .tema { width: 36px; height: 36px; display: grid; place-items: center; background: transparent; border: 1px solid var(--linha-forte); border-radius: 999px; color: var(--tinta-mid); cursor: pointer; transition: color .25s, border-color .25s; }
+  .tema:hover { color: var(--ciano); border-color: var(--ciano); }
+  .tema svg { width: 16px; height: 16px; }
+  .tema .lua { display: block; }
+  .tema .sol { display: none; }
+  :root[data-theme="light"] .tema .lua { display: none; }
+  :root[data-theme="light"] .tema .sol { display: block; }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) .tema .lua { display: none; }
+    :root:not([data-theme="dark"]) .tema .sol { display: block; }
+  }
+
+  /* ================= abertura: o texto e a área de soltar ================= */
+  /* no celular a área de soltar sobe e o painel desce: a ação vem antes da explicação */
+  .abertura { padding: 4.5rem 0 3rem; display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); grid-template-areas: "texto aside" "solta solta"; gap: 2.8rem 4rem; align-items: center; }
+  .abertura__grade { display: contents; }
+  .abertura__texto { grid-area: texto; }
+  .entra-sai { grid-area: aside; }
+  .abertura .solta { grid-area: solta; margin-top: 0; }
+
+  /* entra → sai: a mesma leitura do fluxo da landing, em miniatura */
+  .entra-sai { display: grid; gap: .5rem; }
+  .entra-sai > div { padding: 1.1rem 1.3rem 1.2rem; border: 1px solid var(--linha); border-radius: 14px; background: color-mix(in srgb, var(--superficie) 40%, transparent); }
+  .entra-sai .rotulo { display: block; margin-bottom: .5rem; font: 600 .7rem/1.3 "JetBrains Mono", monospace; letter-spacing: .07em; text-transform: uppercase; }
+  .entra-sai .entra .rotulo { color: var(--ciano); }
+  .entra-sai .sai .rotulo { color: var(--sol); }
+  .entra-sai ul { margin: 0; padding: 0; list-style: none; display: grid; gap: .3rem; font-size: .93rem; color: var(--tinta-mid); }
+  .entra-sai li { position: relative; padding-left: 1.05rem; }
+  .entra-sai li::before { content: ""; position: absolute; left: 0; top: .62em; width: 6px; height: 6px; border-radius: 50%; background: var(--ciano); }
+  .entra-sai .sai li::before { background: var(--sol); }
+  .entra-sai .sai li { color: var(--tinta); }
+  .entra-sai .seta { justify-self: center; display: grid; place-items: center; width: 26px; height: 26px; margin: -.2rem 0; color: var(--coral); }
+  .entra-sai .seta svg { width: 16px; height: 16px; }
+
+  /* resumo em duas colunas: a frase e a régua */
+  .painel { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 2rem 4rem; align-items: center; margin-top: 3rem; }
+  .painel .resumo, .painel .regua { margin-top: 0; }
+  .painel .regua__legenda { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+  /* fecho em duas colunas: a chamada e as outras amostras */
+  .fecho__grade { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: 2.5rem 4rem; align-items: center; }
+  .outras { display: grid; gap: .6rem; }
+  .outras .rotulo { font: 600 .7rem/1.3 "JetBrains Mono", monospace; letter-spacing: .07em; text-transform: uppercase; color: var(--tinta-mid); margin-bottom: .2rem; }
+  .outras a { display: block; padding: 1.1rem 1.3rem; border: 1px solid var(--linha); border-radius: 14px; background: color-mix(in srgb, var(--superficie) 40%, transparent); text-decoration: none; transition: border-color .25s, transform .25s; }
+  .outras a:hover { border-color: var(--ciano); transform: translateY(-2px); }
+  .outras a b { display: block; font-weight: 600; margin-bottom: .15rem; }
+  .outras a span { display: block; font-size: .92rem; color: var(--tinta-mid); }
+  .outras a i { display: block; margin-top: .5rem; font-style: normal; font-size: .84rem; font-weight: 600; color: var(--ciano); }
+  @media (max-width: 900px) {
+    .abertura { grid-template-columns: 1fr; grid-template-areas: "texto" "solta" "aside"; gap: 2rem; }
+    .painel, .fecho__grade { grid-template-columns: 1fr; gap: 2rem; }
+    .painel .regua__legenda { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  .abertura h1 { font-size: clamp(2.2rem, 5.6vw, 4.2rem); max-width: 16ch; }
+  .lead { margin-top: 1.5rem; font-size: 1.12rem; color: var(--tinta-mid); max-width: 56ch; }
+
+  .local {
+    display: inline-flex; align-items: center; gap: .6rem; margin-top: 1.6rem;
+    padding: .5rem .95rem .5rem .7rem; border: 1px solid var(--linha-forte); border-radius: 999px;
+    font-size: .86rem; color: var(--tinta-mid); background: color-mix(in srgb, var(--superficie) 55%, transparent);
+  }
+  .local svg { width: 15px; height: 15px; color: var(--ciano); flex: none; }
+  .local b { color: var(--tinta); font-weight: 600; }
+
+  .solta {
+    position: relative; margin-top: 2.8rem; padding: 3.4rem 2rem 2.6rem; text-align: center;
+    border: 1.5px dashed var(--linha-forte); border-radius: 20px;
+    background: color-mix(in srgb, var(--superficie) 32%, transparent);
+    transition: border-color .25s, background .25s;
+  }
+  .solta.sobre { border-color: var(--ciano); border-style: solid; background: color-mix(in srgb, var(--ciano) 9%, var(--superficie) 40%); }
+  .solta svg.pasta { width: 54px; height: 54px; color: var(--azul); }
+  .solta.sobre svg.pasta { color: var(--ciano); }
+  .solta h2 { margin-top: 1rem; font-size: clamp(1.25rem, 2.6vw, 1.7rem); letter-spacing: -0.02em; }
+  .solta p { margin-inline: auto; }
+  .solta .ou { margin-top: .7rem; color: var(--tinta-mid); font-size: .98rem; }
+  .solta .ou button { background: none; border: 0; padding: 0; color: var(--tinta); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--ciano); cursor: pointer; }
+  .solta .ou button:hover { color: var(--ciano); }
+  .solta .aceita { margin-top: 1rem; max-width: 58ch; font-size: .8rem; color: var(--tinta-mid); }
+  .solta .exemplo { margin-top: 2rem; padding-top: 1.6rem; border-top: 1px solid var(--linha); display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: .6rem 1.2rem; color: var(--tinta-mid); font-size: .98rem; }
+  .solta.lendo { border-style: solid; border-color: var(--azul); }
+  .solta .andamento { margin-top: 1rem; font-size: .9rem; color: var(--ciano); }
+
+  /* ================= resultado ================= */
+  .resultado { padding: 2.2rem 0 0; animation: entra .5s cubic-bezier(.2,.7,.3,1) both; }
+  @keyframes entra { from { opacity: 0; transform: translateY(12px); } }
+
+  .lida {
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .8rem 1.5rem;
+    padding: .85rem 1.2rem; border: 1px solid var(--linha); border-radius: 12px;
+    background: color-mix(in srgb, var(--superficie) 40%, transparent);
+    font-size: .92rem; color: var(--tinta-mid);
+  }
+  .lida b { color: var(--tinta); font-weight: 600; }
+  .lida .avisos { display: flex; flex-wrap: wrap; gap: .4rem .9rem; }
+  .lida .avisos span::before { content: "·"; margin-right: .6rem; color: var(--linha-forte); }
+  .lida .avisos span:first-child::before { content: none; }
+
+  .aviso-vazio { margin-top: 1.4rem; padding: 1.1rem 1.3rem; border: 1px solid var(--coral); border-radius: 12px; color: var(--tinta); font-size: .98rem; }
+
+  .resumo { margin-top: 3rem; font-size: clamp(1.45rem, 3.2vw, 2.25rem); max-width: 26ch; }
+  .resumo .valor { color: var(--coral); }
+  .resumo small { display: block; margin-top: .6rem; font: 500 .95rem/1.4 Archivo, sans-serif; letter-spacing: 0; color: var(--tinta-mid); }
+
+  /* régua de vencimentos: quando o dinheiro sai */
+  .regua { margin-top: 2.2rem; }
+  .regua__barra { display: flex; gap: 3px; height: 12px; }
+  .regua__barra i { display: block; flex: 0 0 auto; min-width: 4px; border-radius: 3px; transform-origin: left; animation: cresce .7s cubic-bezier(.2,.7,.3,1) both; }
+  @keyframes cresce { from { transform: scaleX(0); } }
+  .regua__legenda { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: 1rem 1.5rem; margin-top: 1rem; }
+  .regua__legenda div { padding-top: .8rem; border-top: 1px solid var(--linha); font-size: .86rem; color: var(--tinta-mid); }
+  .regua__legenda div::before { content: ""; display: inline-block; width: 9px; height: 9px; margin-right: .5rem; border-radius: 2px; background: var(--cor); vertical-align: 0; }
+  .regua__legenda b { display: block; margin-top: .25rem; color: var(--tinta); font-size: 1.12rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .regua__legenda small { display: block; font-size: .8rem; }
+  .regua [data-faixa="vencidas"] { --cor: var(--coral); }
+  .regua [data-faixa="semana"]   { --cor: var(--sol); }
+  .regua [data-faixa="depois"]   { --cor: var(--azul); }
+  .regua [data-faixa="semData"]  { --cor: var(--linha-forte); }
+  .regua__barra i { background: var(--cor); }
+
+  /* ferramentas + tabela */
+  .ferramentas { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .9rem 1.5rem; margin: 3rem 0 1rem; }
+  .busca { position: relative; flex: 1 1 16rem; max-width: 24rem; }
+  .busca input {
+    width: 100%; padding: .65rem .95rem .65rem 2.3rem; border-radius: 10px;
+    border: 1px solid var(--linha-forte); background: color-mix(in srgb, var(--superficie) 60%, transparent);
+    color: var(--tinta); font: 400 .95rem/1.4 Archivo, sans-serif;
+  }
+  .busca input:focus { outline: none; border-color: var(--ciano); }
+  .busca svg { position: absolute; left: .8rem; top: 50%; translate: 0 -50%; width: 15px; height: 15px; color: var(--tinta-mid); pointer-events: none; }
+  .exportar { display: flex; flex-wrap: wrap; gap: .6rem; }
+  .exportar .btn { padding: .62rem 1.05rem; font-size: .88rem; }
+  .exportar .btn svg { width: 14px; height: 14px; }
+
+  .rolagem { overflow-x: auto; margin-inline: -1.25rem; padding-inline: 1.25rem; }
+  table { width: 100%; min-width: 760px; border-collapse: collapse; font-size: .95rem; }
+  th {
+    padding: .7rem .8rem; text-align: left; font-size: .78rem; font-weight: 600; color: var(--tinta-mid);
+    border-bottom: 1px solid var(--linha-forte); white-space: nowrap; cursor: pointer; user-select: none;
+  }
+  th:hover { color: var(--tinta); }
+  th .ordem { display: inline-block; width: .9em; margin-left: .2rem; color: var(--ciano); font-size: .7em; }
+  th.num, td.num { text-align: right; }
+  td { padding: .72rem .8rem; border-bottom: 1px solid var(--linha); vertical-align: top; }
+  td.num { font-variant-numeric: tabular-nums; }
+  td.doc { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: .86rem; color: var(--tinta-mid); white-space: nowrap; }
+  td.nota { white-space: nowrap; color: var(--tinta-mid); }
+  td.nota b { color: var(--tinta); font-weight: 500; }
+  tbody tr.linha { cursor: pointer; transition: background .15s; }
+  tbody tr.linha:hover { background: color-mix(in srgb, var(--superficie) 55%, transparent); }
+  tbody tr.linha[aria-expanded="true"] { background: color-mix(in srgb, var(--superficie) 70%, transparent); }
+  tbody tr.linha[aria-expanded="true"] td { border-bottom-color: transparent; }
+  tbody tr.linha { animation: entra .4s cubic-bezier(.2,.7,.3,1) both; animation-delay: calc(var(--i, 0) * 28ms); }
+  td.forn { font-weight: 500; }
+  td.forn small { display: block; font-weight: 400; font-size: .8rem; color: var(--tinta-mid); }
+  tr.apagada td.forn, tr.apagada td.nota, tr.apagada td.doc { color: var(--tinta-mid); }
+  tr.apagada td.num.total { text-decoration: line-through; color: var(--tinta-mid); }
+  .tag { display: inline-block; margin-left: .5rem; padding: .08rem .5rem; border: 1px solid currentColor; border-radius: 999px; font-size: .7rem; font-weight: 600; vertical-align: 2px; white-space: nowrap; }
+  .tag.cancelada, .tag.denegada { color: var(--coral); }
+  .tag.protocolo { color: var(--sol); }
+  td.venc { white-space: nowrap; }
+  td.venc.passou { color: var(--coral); font-weight: 500; }
+  td.venc.perto  { color: var(--sol); font-weight: 500; }
+  td.venc.passou::before, td.venc.perto::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: .5rem; border-radius: 50%; background: currentColor; vertical-align: 1px; }
+  td.venc small { margin-left: .35rem; color: var(--tinta-mid); font-weight: 400; }
+  tr.apagada td.venc { color: var(--tinta-mid); font-weight: 400; }
+  tr.apagada td.venc::before { content: none; }
+  tfoot td { padding-top: .9rem; font-weight: 600; border-bottom: 0; }
+  tfoot td.num { font-size: 1.05rem; }
+  tfoot small { font-weight: 400; color: var(--tinta-mid); }
+
+  tr.detalhe td { padding: 0 .8rem 1.3rem 1.1rem; background: color-mix(in srgb, var(--fundo-2) 55%, transparent); }
+  .detalhe__grade { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 1.4rem 2.5rem; padding-top: .3rem; font-size: .9rem; }
+  .detalhe h3 { margin: 0 0 .5rem; font: 600 .76rem/1.4 Archivo, sans-serif; color: var(--ciano); }
+  .parcelas { display: grid; grid-template-columns: auto 1fr auto; gap: .3rem 1.2rem; }
+  .parcelas span:nth-child(3n) { text-align: right; font-variant-numeric: tabular-nums; }
+  .parcelas .passou { color: var(--coral); }
+  .parcelas .perto { color: var(--sol); }
+  .meta { display: grid; grid-template-columns: auto 1fr; gap: .3rem 1.2rem; color: var(--tinta-mid); }
+  .meta dt { margin: 0; }
+  .meta dd { margin: 0; color: var(--tinta); overflow-wrap: anywhere; }
+  .meta dd.mono { font-size: .82rem; }
+
+  .nada { padding: 2.5rem 1rem; text-align: center; color: var(--tinta-mid); }
+
+  .descartados { margin-top: 1.8rem; font-size: .92rem; }
+  .descartados summary { cursor: pointer; list-style: none; color: var(--tinta-mid); }
+  .descartados summary::-webkit-details-marker { display: none; }
+  .descartados summary::before { content: "▸"; display: inline-block; margin-right: .5rem; color: var(--ciano); transition: transform .2s; }
+  .descartados[open] summary::before { transform: rotate(90deg); }
+  .descartados ul { margin: .8rem 0 0; padding: 0; list-style: none; }
+  .descartados li { padding: .5rem 0; border-top: 1px solid var(--linha); display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 1.5rem; }
+  .descartados li span:first-child { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: .8rem; color: var(--tinta-mid); overflow-wrap: anywhere; }
+
+  .copiado { font-size: .85rem; color: var(--ciano); }
+
+  /* ================= fecho ================= */
+  .fecho { margin-top: 5.5rem; padding: 4rem 0 5rem; border-top: 1px solid var(--linha-forte); }
+  .fecho h2 { font-size: clamp(1.8rem, 4.4vw, 2.9rem); max-width: 20ch; }
+  .fecho p { margin-top: 1.3rem; font-size: 1.1rem; color: var(--tinta-mid); }
+  .fecho .btn { margin-top: 2.2rem; padding: 1rem 1.9rem; font-size: 1.02rem; }
+
+  footer { padding: 2rem 0 2.5rem; border-top: 1px solid var(--linha); font-size: .86rem; color: var(--tinta-mid); }
+  .rodape { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; }
+  .rodape .marca img { height: 30px; }
+
+  /* ================= responsivo ================= */
+  @media (max-width: 820px) {
+    body { font-size: 16px; }
+    .abertura { padding-top: 3rem; }
+    .marca small, nav .item { display: none; }
+    .solta { padding: 2.4rem 1.2rem 2rem; }
+    .regua__legenda { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .detalhe__grade { grid-template-columns: 1fr; }
+    .descartados li { grid-template-columns: 1fr; gap: .2rem; }
+    .fecho { margin-top: 3.5rem; padding: 3rem 0; }
+  }
+  @media (max-width: 640px) {
+    .abertura { padding: 2.6rem 0 2rem; }
+    .abertura h1 { font-size: clamp(1.9rem, 8.6vw, 2.4rem); }
+    .lead { font-size: 1rem; }
+    .barra { gap: .8rem; }
+    .marca img { height: 32px; }
+    nav { gap: .6rem; }
+    nav .btn { padding: .55rem .9rem; font-size: .84rem; white-space: nowrap; }
+    .local { border-radius: 14px; align-items: flex-start; }
+    .local svg { margin-top: .25rem; }
+    .solta { padding: 2rem 1rem 1.6rem; }
+    .solta h2 { font-size: 1.2rem; }
+    .solta .exemplo { flex-direction: column; }
+    .lida { padding: .8rem 1rem; }
+    .lida .avisos span::before { content: none; }
+    .resumo { font-size: 1.45rem; }
+    .ferramentas { margin-top: 2.2rem; }
+    .busca { max-width: none; }
+    .exportar { width: 100%; }
+    .exportar .btn { flex: 1 1 auto; }
+    /* a tabela vira cartão por nota: nada de rolagem lateral */
+    .rolagem { overflow: visible; margin: 0; padding: 0; }
+    table { min-width: 0; }
+    thead { display: none; }
+    tbody, tfoot, tbody tr, tfoot tr, td { display: block; }
+    tbody tr.linha { display: grid; grid-template-columns: 1fr 1fr; gap: .2rem 1rem; padding: .9rem 0; border-bottom: 1px solid var(--linha); }
+    tbody tr.linha td { border: 0; padding: 0; }
+    td.forn { grid-column: 1 / -1; font-size: 1rem; }
+    td.doc { grid-column: 1 / -1; font-size: .82rem; }
+    td.num.total { text-align: right; font-size: 1.08rem; font-weight: 600; }
+    .rot { display: inline; margin-right: .35rem; font-size: .76rem; color: var(--tinta-mid); }
+    td.nota .rot, td.emis { font-size: .9rem; }
+    tr.detalhe td { padding: .4rem 0 1rem; }
+    tr.linha[aria-expanded="true"] { border-bottom-color: transparent; }
+    tfoot tr { display: flex; justify-content: space-between; gap: 1rem; padding-top: .9rem; }
+    tfoot td { padding: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+</style>
+
+<header>
+  <div class="env barra">
+    <a class="marca" href="https://hightide.site/" aria-label="High Tide, voltar ao site">
+      <img class="so-escuro" src="../../telas/logo-escura.webp" width="524" height="120" alt="High Tide">
+      <img class="so-claro" src="../../telas/logo-clara.webp" width="524" height="120" alt="" aria-hidden="true">
+      <small>Extrator de NF-e</small>
+    </a>
+    <nav>
+      <a class="item" href="https://hightide.site/">Voltar ao site</a>
+      <button class="tema" id="tema" type="button" aria-label="Alternar tema claro e escuro">
+        <svg class="sol" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4"/></svg>
+        <svg class="lua" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z"/></svg>
+      </button>
+      <a class="btn" href="https://hightide.site/#orcamento">Pedir orçamento</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section class="abertura env" id="abertura">
+    <div class="abertura__grade">
+    <div class="abertura__texto">
+    <h1>Da pasta de XML para a planilha, sem digitar.</h1>
+    <p class="lead">Arraste as notas fiscais eletrônicas que chegam por e-mail ou que o contador manda. Fornecedor, CNPJ, valor e vencimento saem numa tabela e num CSV que o Excel abre direto.</p>
+    <p class="local">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+      <span><b>Nada sai do seu navegador.</b> Os arquivos são lidos aqui, na sua máquina, e não são enviados a servidor nenhum — nem ao nosso.</span>
+    </p>
+    </div>
+    <aside class="entra-sai" aria-label="O que entra e o que sai">
+      <div class="entra"><span class="rotulo">Entra</span><ul>
+        <li>XMLs de NF-e, soltos, em pasta ou em .zip</li>
+        <li>Do e-mail, do contador ou do portal da SEFAZ</li>
+        <li>Sem cadastro e sem enviar nada</li>
+      </ul></div>
+      <span class="seta" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v16M6 14l6 6 6-6"/></svg></span>
+      <div class="sai"><span class="rotulo">Sai</span><ul>
+        <li>Tabela com fornecedor, CNPJ, valor e vencimento</li>
+        <li>Vencidas e a vencer na semana, separadas</li>
+        <li>CSV das notas e das contas a pagar, prontos para o Excel</li>
+      </ul></div>
+    </aside>
+    </div>
+
+    <div class="solta" id="solta" tabindex="0" role="button" aria-label="Área para soltar arquivos XML de NF-e">
+      <svg class="pasta" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M6 14a3 3 0 0 1 3-3h9l4 4h17a3 3 0 0 1 3 3v19a3 3 0 0 1-3 3H9a3 3 0 0 1-3-3Z"/>
+        <path d="M24 34V22M18.5 27.5 24 22l5.5 5.5"/>
+      </svg>
+      <h2><span class="so-mouse">Solte aqui os XMLs, a pasta inteira ou o .zip</span><span class="so-toque">Toque para escolher os XMLs ou o .zip</span></h2>
+      <p class="ou so-mouse">ou <button type="button" id="escolher">escolher arquivos</button> · <button type="button" id="escolher-pasta">escolher uma pasta</button></p>
+      <p class="aceita">NF-e modelo 55 e NFC-e modelo 65, layout 2.00 em diante. PDF e outros arquivos que estiverem junto são ignorados.</p>
+      <p class="andamento" id="andamento" hidden></p>
+      <div class="exemplo">
+        <span>Não tem XML à mão?</span>
+        <button class="btn discreto" type="button" id="exemplo">Ver com notas de exemplo</button>
+      </div>
+      <input type="file" id="entrada" multiple accept=".xml,.zip,text/xml,application/xml,application/zip" hidden>
+      <input type="file" id="entrada-pasta" webkitdirectory hidden>
+    </div>
+  </section>
+
+  <section class="resultado env" id="resultado" hidden>
+    <div class="lida">
+      <div class="avisos" id="lida"></div>
+      <button class="btn discreto" type="button" id="outra">Ler outra pasta</button>
+    </div>
+
+    <div id="corpo">
+      <div class="painel">
+        <h2 class="resumo" id="resumo"></h2>
+        <div class="regua" id="regua" aria-label="Quando o dinheiro sai">
+          <div class="regua__barra" id="regua-barra"></div>
+          <div class="regua__legenda" id="regua-legenda"></div>
+        </div>
+      </div>
+
+      <div class="ferramentas">
+        <label class="busca">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <input type="search" id="busca" placeholder="Filtrar por fornecedor, CNPJ ou número" aria-label="Filtrar notas">
+        </label>
+        <div class="exportar">
+          <button class="btn discreto" type="button" id="csv-notas">Baixar CSV das notas</button>
+          <button class="btn discreto" type="button" id="csv-parcelas">Baixar contas a pagar</button>
+          <button class="btn discreto" type="button" id="copiar">Copiar tabela</button>
+          <span class="copiado" id="copiado" hidden></span>
+        </div>
+      </div>
+
+      <div class="rolagem">
+        <table id="tabela">
+          <thead>
+            <tr>
+              <th data-col="fornecedor">Fornecedor<span class="ordem"></span></th>
+              <th data-col="docEmit">CNPJ / CPF<span class="ordem"></span></th>
+              <th data-col="numero">Nota<span class="ordem"></span></th>
+              <th data-col="emissao">Emissão<span class="ordem"></span></th>
+              <th data-col="vencimento">Vencimento<span class="ordem"></span></th>
+              <th data-col="valor" class="num">Valor (R$)<span class="ordem"></span></th>
+            </tr>
+          </thead>
+          <tbody id="linhas"></tbody>
+          <tfoot><tr><td colspan="5" id="rodape-nota"></td><td class="num" id="rodape-total"></td></tr></tfoot>
+        </table>
+      </div>
+    </div>
+
+    <div class="aviso-vazio" id="vazio" hidden></div>
+
+    <details class="descartados" id="descartados" hidden>
+      <summary id="descartados-titulo"></summary>
+      <ul id="descartados-lista"></ul>
+    </details>
+
+    <div class="fecho"><div class="fecho__grade">
+      <div>
+      <h2>Quer isso rodando toda semana, sozinho, com os seus dados?</h2>
+      <p>Este extrator é uma amostra. Na sua empresa, a rotina lê a caixa de e-mail, confere a nota com o pedido de compra e lança no sistema que você já usa — sem ninguém digitar e sem nota esquecida na pasta.</p>
+      <a class="btn" href="https://hightide.site/#orcamento">Conversar com a High Tide</a>
+      </div>
+      <aside class="outras" aria-label="Outras amostras">
+        <span class="rotulo">Outras amostras para testar</span>
+        <a href="../documentos/index.html"><b>Gerador de documentos</b><span>Preencheu uma vez, saem proposta, ordem de serviço e recibo em PDF.</span><i>Testar agora</i></a>
+        <a href="../duplicados/index.html"><b>Caça-duplicados</b><span>O mesmo cliente cadastrado duas vezes, em um sistema ou em dois. Ache todos.</span><i>Testar agora</i></a>
+        <a href="../conciliador/index.html"><b>Conciliador bancário</b><span>Extrato de um lado, lançamentos do outro: o que bate, o que falta e o que sobra.</span><i>Testar agora</i></a>
+      </aside>
+    </div></div>
+  </section>
+</main>
+
+<footer>
+  <div class="env rodape">
+    <span class="marca">
+      <img class="so-escuro" src="../../telas/logo-escura.webp" width="524" height="120" alt="High Tide">
+      <img class="so-claro" src="../../telas/logo-clara.webp" width="524" height="120" alt="" aria-hidden="true">
+    </span>
+    <span>© 2026 High Tide · hightide.site</span>
+  </div>
+</footer>
+
+<script src="nucleo.js"></script>
+<script>
+(function () {
+  'use strict';
+  var raiz = document.documentElement;
+  var $ = function (id) { return document.getElementById(id); };
+
+  /* ---------- tema (mesma chave da landing: a escolha vale nas duas) ---------- */
+  try {
+    var salvo = localStorage.getItem('ht-tema');
+    if (salvo) raiz.setAttribute('data-theme', salvo);
+  } catch (e) {}
+  $('tema').addEventListener('click', function () {
+    var claroAgora = raiz.getAttribute('data-theme')
+      ? raiz.getAttribute('data-theme') === 'light'
+      : matchMedia('(prefers-color-scheme: light)').matches;
+    var novo = claroAgora ? 'dark' : 'light';
+    raiz.setAttribute('data-theme', novo);
+    try { localStorage.setItem('ht-tema', novo); } catch (e) {}
+  });
+
+  /* ---------- estado ---------- */
+  var estado = { notas: [], juncao: null, ordem: { col: 'vencimento', asc: true }, filtro: '', aberta: null };
+  var hoje = NFE.hojeISO();
+  var limiteSemana = NFE.maisDias(hoje, 7);
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function reais(v) { return 'R$ ' + NFE.formatarValor(v); }
+  function plural(n, um, muitos) { return n + ' ' + (n === 1 ? um : muitos); }
+  function classeVenc(iso, nota) {
+    if (!iso || (nota && (nota.situacao === 'cancelada' || nota.situacao === 'denegada'))) return '';
+    return iso < hoje ? 'passou' : (iso <= limiteSemana ? 'perto' : '');
+  }
+
+  /* ---------- entrada de arquivos ---------- */
+  var BINARIOS = /\.(pdf|jpe?g|png|gif|webp|docx?|xlsx?|pptx?|txt|csv|html?|json|exe|dll)$/i;
+
+  function decodificar(bytes) {
+    var texto = new TextDecoder('utf-8').decode(bytes);
+    if (/encoding=["'](iso-8859-1|windows-1252|latin-?1)/i.test(texto.slice(0, 160))) {
+      try { texto = new TextDecoder('windows-1252').decode(bytes); } catch (e) {}
+    }
+    return texto;
+  }
+
+  function ehZip(nome, bytes) {
+    return /\.zip$/i.test(nome) || (bytes.length > 4 && bytes[0] === 0x50 && bytes[1] === 0x4B && bytes[2] === 3 && bytes[3] === 4);
+  }
+
+  function inflar(dados) {
+    var fluxo = new DecompressionStream('deflate-raw');
+    var escritor = fluxo.writable.getWriter();
+    escritor.write(dados);
+    escritor.close();
+    return new Response(fluxo.readable).arrayBuffer().then(function (b) { return new Uint8Array(b); });
+  }
+
+  /* Leitor de zip mínimo: diretório central + inflate nativo. Cobre stored e deflate,
+     que é tudo que Windows, macOS e o portal da SEFAZ produzem. */
+  function lerZip(nomeZip, bytes) {
+    var vista = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    var fim = -1;
+    for (var i = bytes.length - 22; i >= Math.max(0, bytes.length - 65557); i--) {
+      if (vista.getUint32(i, true) === 0x06054b50) { fim = i; break; }
+    }
+    if (fim < 0) return Promise.resolve([{ nome: nomeZip, erro: 'zip sem índice — pode estar corrompido ou incompleto' }]);
+
+    var total = vista.getUint16(fim + 10, true);
+    var pos = vista.getUint32(fim + 16, true);
+    var entradas = [];
+    for (var n = 0; n < total && pos + 46 <= bytes.length; n++) {
+      if (vista.getUint32(pos, true) !== 0x02014b50) break;
+      var metodo = vista.getUint16(pos + 10, true);
+      var comprimido = vista.getUint32(pos + 20, true);
+      var tamNome = vista.getUint16(pos + 28, true);
+      var tamExtra = vista.getUint16(pos + 30, true);
+      var tamComent = vista.getUint16(pos + 32, true);
+      var local = vista.getUint32(pos + 42, true);
+      var nome = new TextDecoder('utf-8').decode(bytes.subarray(pos + 46, pos + 46 + tamNome));
+      pos += 46 + tamNome + tamExtra + tamComent;
+      if (nome.slice(-1) === '/') continue;
+      entradas.push({ nome: nome, metodo: metodo, comprimido: comprimido, local: local });
+    }
+
+    return Promise.all(entradas.map(function (e) {
+      var nomeCurto = e.nome.split('/').pop();
+      if (BINARIOS.test(nomeCurto)) return { nome: nomeZip + '/' + e.nome, pulado: true };
+      var inicio = e.local + 30 + vista.getUint16(e.local + 26, true) + vista.getUint16(e.local + 28, true);
+      var dados = bytes.subarray(inicio, inicio + e.comprimido);
+      if (e.metodo === 0) return { nome: nomeZip + '/' + e.nome, bytes: dados };
+      if (e.metodo === 8) {
+        return inflar(dados).then(function (b) { return { nome: nomeZip + '/' + e.nome, bytes: b }; },
+          function () { return { nome: nomeZip + '/' + e.nome, erro: 'não foi possível descompactar' }; });
+      }
+      return { nome: nomeZip + '/' + e.nome, erro: 'compressão que o navegador não abre (método ' + e.metodo + ')' };
+    })).then(function (lista) {
+      return lista.map(function (item) {
+        if (item.bytes) {
+          if (ehZip(item.nome, item.bytes)) return { nome: item.nome, erro: 'zip dentro de zip — descompacte antes' };
+          return { nome: item.nome, texto: decodificar(item.bytes) };
+        }
+        return item;
+      });
+    });
+  }
+
+  function lerFile(file) {
+    var nome = file.webkitRelativePath || file.name;
+    if (BINARIOS.test(nome)) return Promise.resolve([{ nome: nome, pulado: true }]);
+    return file.arrayBuffer().then(function (buf) {
+      var bytes = new Uint8Array(buf);
+      if (ehZip(nome, bytes)) return lerZip(nome, bytes);
+      return [{ nome: nome, texto: decodificar(bytes) }];
+    }, function () {
+      return [{ nome: nome, erro: 'o navegador não conseguiu abrir o arquivo' }];
+    });
+  }
+
+  /* Chrome devolve no máximo 100 entradas por readEntries: repetir até vir vazio */
+  function lerDiretorio(entry) {
+    var leitor = entry.createReader(), tudo = [];
+    return new Promise(function (resolve, reject) {
+      (function passo() {
+        leitor.readEntries(function (lote) {
+          if (!lote.length) return resolve(tudo);
+          tudo = tudo.concat(Array.prototype.slice.call(lote));
+          passo();
+        }, reject);
+      })();
+    });
+  }
+  function arquivosDe(entry) {
+    if (entry.isFile) return new Promise(function (res, rej) { entry.file(res, rej); }).then(function (f) { return [f]; });
+    if (entry.isDirectory) {
+      return lerDiretorio(entry).then(function (filhos) {
+        return Promise.all(filhos.map(arquivosDe)).then(function (l) { return [].concat.apply([], l); });
+      });
+    }
+    return Promise.resolve([]);
+  }
+  function arquivosDoDrop(dt) {
+    var itens = Array.prototype.slice.call(dt.items || []);
+    var entradas = itens.map(function (it) { return it.webkitGetAsEntry ? it.webkitGetAsEntry() : null; }).filter(Boolean);
+    if (entradas.length) {
+      return Promise.all(entradas.map(arquivosDe)).then(function (l) { return [].concat.apply([], l); });
+    }
+    return Promise.resolve(Array.prototype.slice.call(dt.files || []));
+  }
+
+  /* ---------- processamento ---------- */
+  var solta = $('solta');
+  var andamento = $('andamento');
+
+  function processar(files) {
+    files = files.filter(function (f) { return f && f.size >= 0; });
+    if (!files.length) return;
+    solta.classList.add('lendo');
+    andamento.hidden = false;
+    andamento.textContent = 'Lendo ' + plural(files.length, 'arquivo', 'arquivos') + '…';
+
+    Promise.all(files.map(lerFile)).then(function (grupos) {
+      var itens = [].concat.apply([], grupos);
+      var pulados = 0, resultados = [];
+      itens.forEach(function (it) {
+        if (it.pulado) { pulados++; return; }
+        if (it.erro) { resultados.push({ arquivo: it.nome, tipo: 'erro', notas: [], motivo: it.erro }); return; }
+        resultados.push(NFE.lerArquivo(it.nome.split('/').pop() === it.nome ? it.nome : it.nome, it.texto));
+      });
+      mostrar(NFE.juntar(resultados), pulados);
+    }).catch(function (e) {
+      andamento.textContent = 'Não deu para ler: ' + (e && e.message ? e.message : e);
+    }).then(function () {
+      solta.classList.remove('lendo');
+    });
+  }
+
+  function textosParaFiles(lista) {
+    return lista.map(function (a) { return new File([a.texto], a.nome, { type: 'text/xml' }); });
+  }
+
+  /* ---------- drag & drop, inputs, exemplo ---------- */
+  ['dragenter', 'dragover'].forEach(function (ev) {
+    solta.addEventListener(ev, function (e) { e.preventDefault(); solta.classList.add('sobre'); });
+  });
+  ['dragleave', 'drop'].forEach(function (ev) {
+    solta.addEventListener(ev, function (e) { e.preventDefault(); if (ev === 'drop' || !solta.contains(e.relatedTarget)) solta.classList.remove('sobre'); });
+  });
+  solta.addEventListener('drop', function (e) {
+    arquivosDoDrop(e.dataTransfer).then(processar);
+  });
+  document.addEventListener('dragover', function (e) { e.preventDefault(); });
+  document.addEventListener('drop', function (e) { e.preventDefault(); });
+
+  solta.addEventListener('keydown', function (e) {
+    if ((e.key === 'Enter' || e.key === ' ') && e.target === solta) { e.preventDefault(); $('entrada').click(); }
+  });
+  solta.addEventListener('click', function (e) {
+    if (e.target.closest('button, input, a')) return;
+    $('entrada').click();
+  });
+  $('escolher').addEventListener('click', function () { $('entrada').click(); });
+  $('escolher-pasta').addEventListener('click', function () { $('entrada-pasta').click(); });
+  $('entrada').addEventListener('change', function () { processar(Array.prototype.slice.call(this.files)); this.value = ''; });
+  $('entrada-pasta').addEventListener('change', function () { processar(Array.prototype.slice.call(this.files)); this.value = ''; });
+  $('exemplo').addEventListener('click', function () { processar(textosParaFiles(NFE.exemplos())); });
+
+  $('outra').addEventListener('click', function () {
+    $('resultado').hidden = true;
+    $('abertura').hidden = false;
+    andamento.hidden = true;
+    estado.filtro = '';
+    $('busca').value = '';
+    solta.scrollIntoView({ block: 'center' });
+  });
+
+  /* ---------- render ---------- */
+  function mostrar(juncao, pulados) {
+    estado.juncao = juncao;
+    estado.notas = juncao.notas;
+    estado.aberta = null;
+    andamento.hidden = true;
+
+    var partes = ['<b>' + plural(juncao.lidos + pulados, 'arquivo lido', 'arquivos lidos') + '</b>'];
+    partes.push('<span><b>' + plural(juncao.notas.length, 'nota', 'notas') + '</b></span>');
+    if (juncao.repetidas) partes.push('<span>' + plural(juncao.repetidas, 'repetida', 'repetidas') + ' (mesma chave)</span>');
+    if (juncao.descartados.length) partes.push('<span>' + juncao.descartados.length + ' que não ' + (juncao.descartados.length === 1 ? 'é' : 'são') + ' nota</span>');
+    if (pulados) partes.push('<span>' + plural(pulados, 'arquivo ignorado', 'arquivos ignorados') + ' (PDF e afins)</span>');
+    $('lida').innerHTML = partes.join('');
+
+    var temNotas = juncao.notas.length > 0;
+    $('corpo').hidden = !temNotas;
+    $('vazio').hidden = temNotas;
+    if (!temNotas) {
+      $('vazio').textContent = juncao.lidos + pulados
+        ? 'Nenhuma NF-e encontrada nesses arquivos. O extrator lê o XML da nota (o arquivo que vem com a chave de 44 dígitos no nome) — não o PDF do DANFE.'
+        : 'Nenhum arquivo foi lido.';
+    } else {
+      renderResumo();
+      renderTabela(true);
+    }
+    renderDescartados(juncao.descartados);
+
+    $('abertura').hidden = true;
+    $('resultado').hidden = false;
+    $('resultado').style.animation = 'none';
+    void $('resultado').offsetWidth;
+    $('resultado').style.animation = '';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function renderResumo() {
+    var r = NFE.resumo(estado.notas, hoje);
+    var periodo = r.primeiraEmissao && r.ultimaEmissao
+      ? (r.primeiraEmissao === r.ultimaEmissao
+          ? ', emitidas em ' + NFE.formatarData(r.primeiraEmissao)
+          : ', emitidas entre ' + NFE.formatarData(r.primeiraEmissao) + ' e ' + NFE.formatarData(r.ultimaEmissao))
+      : '';
+    var canceladas = estado.notas.length - r.quantidade;
+    $('resumo').innerHTML = '<span class="valor">' + esc(reais(r.total)) + '</span> em ' +
+      esc(plural(r.quantidade, 'nota', 'notas')) + ' de ' + esc(plural(r.fornecedores, 'fornecedor', 'fornecedores')) +
+      esc(periodo) + '.' + (canceladas ? '<small>' +
+      esc(plural(canceladas, 'nota cancelada fora da conta', 'notas canceladas fora da conta')) + '</small>' : '');
+
+    var faixas = [
+      ['vencidas', 'Vencidas', r.vencidas],
+      ['semana', 'Vencem em 7 dias', r.semana],
+      ['depois', 'Depois disso', r.depois],
+      ['semData', 'Sem vencimento', r.semData]
+    ];
+    var soma = faixas.reduce(function (s, f) { return s + f[2].valor; }, 0) || 1;
+    $('regua-barra').innerHTML = faixas.filter(function (f) { return f[2].valor > 0; }).map(function (f, i) {
+      return '<i data-faixa="' + f[0] + '" style="flex-basis:' + (f[2].valor / soma * 100).toFixed(2) + '%;animation-delay:' + (i * 90) + 'ms" title="' + esc(f[1] + ': ' + reais(f[2].valor)) + '"></i>';
+    }).join('');
+    $('regua-legenda').innerHTML = faixas.filter(function (f) { return f[2].quantidade > 0; }).map(function (f) {
+      var rotuloQtd = f[0] === 'semData' ? plural(f[2].quantidade, 'nota', 'notas') : plural(f[2].quantidade, 'parcela', 'parcelas');
+      return '<div data-faixa="' + f[0] + '">' + esc(f[1]) + '<b>' + esc(reais(f[2].valor)) + '</b><small>' + esc(rotuloQtd) + '</small></div>';
+    }).join('');
+  }
+
+  function chaveOrdem(n, col) {
+    if (col === 'vencimento') return NFE.vencimento(n) || '9999-99-99';
+    if (col === 'valor') return n.valor;
+    if (col === 'numero') return Number(n.numero) || 0;
+    return String(n[col] || '').toLowerCase();
+  }
+  function notasVisiveis() {
+    var f = estado.filtro.trim().toLowerCase();
+    var digitos = f.replace(/\D/g, '');
+    var lista = estado.notas.filter(function (n) {
+      if (!f) return true;
+      return n.fornecedor.toLowerCase().indexOf(f) >= 0 || n.numero.indexOf(f) >= 0 ||
+        (digitos.length >= 3 && n.docEmit.indexOf(digitos) >= 0) || n.chave.indexOf(f) >= 0;
+    });
+    var col = estado.ordem.col, asc = estado.ordem.asc ? 1 : -1;
+    lista.sort(function (a, b) {
+      var x = chaveOrdem(a, col), y = chaveOrdem(b, col);
+      return x < y ? -asc : x > y ? asc : 0;
+    });
+    return lista;
+  }
+
+  function renderTabela(animar) {
+    var lista = notasVisiveis();
+    var corpo = $('linhas');
+    var html = lista.map(function (n, i) {
+      var venc = NFE.vencimento(n);
+      var cls = classeVenc(venc, n);
+      var apagada = n.situacao === 'cancelada' || n.situacao === 'denegada';
+      var extra = n.parcelas.length > 1 ? '<small>+' + (n.parcelas.length - 1) + '</small>' : '';
+      var tag = apagada ? '<span class="tag ' + n.situacao + '">' + esc(n.situacao) + '</span>'
+              : (n.situacao === 'sem protocolo' ? '<span class="tag protocolo">sem protocolo</span>' : '');
+      var vencTexto = venc ? NFE.formatarData(venc) : (n.condicao === 'sem pagamento' ? '<small>sem pagamento</small>' : '<small>a prazo, sem data</small>');
+      return '<tr class="linha' + (apagada ? ' apagada' : '') + '" data-i="' + i + '" tabindex="0" aria-expanded="false"' +
+        (animar && i < 24 ? ' style="--i:' + i + '"' : ' style="animation:none"') + '>' +
+        '<td class="forn">' + esc(n.fornecedor) + tag + (n.municipio ? '<small>' + esc(n.municipio + (n.uf ? ' · ' + n.uf : '')) + '</small>' : '') + '</td>' +
+        '<td class="doc">' + esc(NFE.formatarDoc(n.docEmit)) + '</td>' +
+        '<td class="nota"><span class="rot">Nota</span><b>' + esc(n.numero || '—') + '</b>' + (n.serie ? ' <span>/ ' + esc(n.serie) + '</span>' : '') + '</td>' +
+        '<td class="emis"><span class="rot">Emitida</span>' + esc(NFE.formatarData(n.emissao) || '—') + '</td>' +
+        '<td class="venc ' + cls + '"><span class="rot">Vence</span>' + vencTexto + extra + '</td>' +
+        '<td class="num total">' + esc(NFE.formatarValor(n.valor)) + '</td>' +
+        '</tr>' +
+        '<tr class="detalhe" hidden><td colspan="6">' + detalhe(n) + '</td></tr>';
+    }).join('');
+    corpo.innerHTML = html || '<tr><td colspan="6" class="nada">Nenhuma nota bate com esse filtro.</td></tr>';
+    corpo._lista = lista;
+
+    var validas = lista.filter(function (n) { return n.situacao !== 'cancelada' && n.situacao !== 'denegada'; });
+    var total = validas.reduce(function (s, n) { return s + n.valor; }, 0);
+    $('rodape-nota').innerHTML = esc(plural(validas.length, 'nota válida', 'notas válidas')) +
+      (lista.length !== validas.length ? ' <small>(' + (lista.length - validas.length) + ' cancelada' + (lista.length - validas.length > 1 ? 's' : '') + ' fora da soma)</small>' : '') +
+      (estado.filtro ? ' <small>com o filtro</small>' : '');
+    $('rodape-total').textContent = NFE.formatarValor(total);
+
+    document.querySelectorAll('th[data-col]').forEach(function (th) {
+      th.querySelector('.ordem').textContent = th.dataset.col === estado.ordem.col ? (estado.ordem.asc ? '▲' : '▼') : '';
+      th.setAttribute('aria-sort', th.dataset.col === estado.ordem.col ? (estado.ordem.asc ? 'ascending' : 'descending') : 'none');
+    });
+  }
+
+  function detalhe(n) {
+    var parcelas;
+    if (n.parcelas.length) {
+      parcelas = '<div class="parcelas">' + n.parcelas.map(function (p) {
+        var c = classeVenc(p.vencimento, n);
+        return '<span>' + esc(p.numero || '—') + '</span><span class="' + c + '">' + esc(NFE.formatarData(p.vencimento)) + '</span><span>' + esc(NFE.formatarValor(p.valor)) + '</span>';
+      }).join('') + '</div>';
+    } else if (n.condicao === 'à vista') {
+      parcelas = '<p>À vista, na emissão (' + esc(NFE.formatarData(n.emissao)) + ').</p>';
+    } else if (n.condicao === 'sem pagamento') {
+      parcelas = '<p>Remessa, sem pagamento — não é conta a pagar.</p>';
+    } else {
+      parcelas = '<p>A prazo, mas o XML não traz as duplicatas — o vencimento fica com o boleto.</p>';
+    }
+    return '<div class="detalhe__grade">' +
+      '<div><h3>' + esc(n.parcelas.length > 1 ? 'Parcelas' : 'Pagamento') + '</h3>' + parcelas + '</div>' +
+      '<div><h3>Da nota</h3><dl class="meta">' +
+      (n.natureza ? '<dt>Operação</dt><dd>' + esc(n.natureza) + '</dd>' : '') +
+      (n.destinatario ? '<dt>Destinatário</dt><dd>' + esc(n.destinatario) + (n.docDest ? ' <span class="mono" style="font-size:.82em;color:var(--tinta-mid)">' + esc(NFE.formatarDoc(n.docDest)) + '</span>' : '') + '</dd>' : '') +
+      '<dt>Situação</dt><dd>' + esc(n.situacao) + '</dd>' +
+      (n.chave ? '<dt>Chave</dt><dd class="mono">' + esc(n.chave) + '</dd>' : '') +
+      '<dt>Arquivo</dt><dd class="mono">' + esc(n.arquivo) + '</dd>' +
+      '</dl></div></div>';
+  }
+
+  function renderDescartados(lista) {
+    var caixa = $('descartados');
+    if (!lista.length) { caixa.hidden = true; return; }
+    caixa.hidden = false;
+    caixa.open = false;
+    $('descartados-titulo').textContent = plural(lista.length, 'arquivo não entrou', 'arquivos não entraram') + ' — ver por quê';
+    $('descartados-lista').innerHTML = lista.map(function (d) {
+      return '<li><span>' + esc(d.arquivo) + '</span><span>' + esc(d.motivo) + '</span></li>';
+    }).join('');
+  }
+
+  /* ---------- interação da tabela ---------- */
+  function alternar(tr) {
+    var aberto = tr.getAttribute('aria-expanded') === 'true';
+    var det = tr.nextElementSibling;
+    tr.setAttribute('aria-expanded', aberto ? 'false' : 'true');
+    if (det && det.classList.contains('detalhe')) det.hidden = aberto;
+  }
+  $('linhas').addEventListener('click', function (e) {
+    var tr = e.target.closest('tr.linha');
+    if (tr && !e.target.closest('a')) alternar(tr);
+  });
+  $('linhas').addEventListener('keydown', function (e) {
+    var tr = e.target.closest('tr.linha');
+    if (tr && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); alternar(tr); }
+  });
+  document.querySelectorAll('th[data-col]').forEach(function (th) {
+    th.addEventListener('click', function () {
+      var col = th.dataset.col;
+      if (estado.ordem.col === col) estado.ordem.asc = !estado.ordem.asc;
+      else estado.ordem = { col: col, asc: col !== 'valor' };
+      renderTabela(false);
+    });
+  });
+  $('busca').addEventListener('input', function () {
+    estado.filtro = this.value;
+    renderTabela(false);
+  });
+
+  /* ---------- exportar ---------- */
+  function baixar(nome, conteudo) {
+    var blob = new Blob([conteudo], { type: 'text/csv;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = nome;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
+    avisar('Se o download não começou, o visualizador está bloqueando — use "Copiar tabela" e cole no Excel.', 6000);
+  }
+  function nomeArquivo(base) { return base + '-' + hoje + '.csv'; }
+  $('csv-notas').addEventListener('click', function () { baixar(nomeArquivo('notas'), NFE.csvNotas(notasVisiveis())); });
+  $('csv-parcelas').addEventListener('click', function () { baixar(nomeArquivo('contas-a-pagar'), NFE.csvParcelas(notasVisiveis())); });
+
+  /* TSV: colar no Excel ou no Sheets já cai em colunas */
+  function tsv() {
+    var linhas = [['Fornecedor', 'CNPJ/CPF', 'Nota', 'Série', 'Emissão', 'Vencimento', 'Parcelas', 'Valor', 'Situação']];
+    notasVisiveis().forEach(function (n) {
+      linhas.push([n.fornecedor, NFE.formatarDoc(n.docEmit), n.numero, n.serie, NFE.formatarData(n.emissao),
+        NFE.formatarData(NFE.vencimento(n)), n.parcelas.length || (NFE.vencimento(n) ? 1 : 0),
+        NFE.formatarValor(n.valor), n.situacao]);
+    });
+    return linhas.map(function (l) { return l.map(function (c) { return String(c).replace(/[\t\r\n]+/g, ' '); }).join('\t'); }).join('\r\n');
+  }
+  var temporizador;
+  function avisar(msg, ms) {
+    var el = $('copiado');
+    el.textContent = msg; el.hidden = false;
+    clearTimeout(temporizador);
+    temporizador = setTimeout(function () { el.hidden = true; }, ms || 2500);
+  }
+  $('copiar').addEventListener('click', function () {
+    var texto = tsv();
+    var ok = function () { avisar('Copiado — cole na planilha.'); };
+    var falhou = function () {
+      var ta = document.createElement('textarea');
+      ta.value = texto; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); ok(); } catch (e) { avisar('Não deu para copiar — selecione a tabela e copie com Ctrl+C.', 5000); }
+      ta.remove();
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(texto).then(ok, falhou);
+    else falhou();
+  });
+})();
+</script>

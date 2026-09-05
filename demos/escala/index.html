@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<title>Gerador de escala — High Tide</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Equipe, turnos e folgas entram; a escala do mês sai — e refaz quando alguém falta. Tudo montado no seu navegador — nada é enviado.">
+<link rel="icon" type="image/png" href="../../telas/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,600..800&family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../comum/base.css">
+
+<style>
+  /* o formulário ocupa a faixa que nas outras demos é da área de soltar arquivo */
+  .abertura .formulario { grid-area: solta; display: grid; gap: 1rem; margin-top: 0; }
+  .formulario .cabeca { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: .5rem 1rem; }
+  .formulario .cabeca p { font-size: .86rem; color: var(--tinta-mid); }
+  .formulario .btn.mini { padding: .45rem .9rem; font-size: .84rem; }
+  .formulario .linha { grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr)); align-items: end; }
+  .formulario .some { display: flex; align-items: end; }
+  .formulario .campo label { display: grid; gap: .3rem; }
+  .formulario .campo label small { font-size: .84rem; color: var(--tinta-mid); }
+  .apagar { background: none; border: 0; padding: .2rem .3rem; color: var(--tinta-mid); cursor: pointer; font-size: 1.1rem; line-height: 1; }
+  .apagar:hover { color: var(--coral); }
+  .chips { margin-top: .1rem; }
+  .chips button { padding: .32rem .6rem; font-size: .78rem; }
+  .chips .legenda { align-self: center; margin-right: .3rem; font-size: .74rem; color: var(--tinta-mid); }
+  .sem-dias { margin: .1rem 0 0; font-size: .84rem; color: var(--sol); }
+  .acoes { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem 1.2rem; }
+  .acoes .aviso { font-size: .88rem; color: var(--sol); }
+  .colar { display: grid; gap: .4rem; }
+
+  /* grade do mês: rola na horizontal de propósito, com a coluna das pessoas fixa */
+  .grade-tabela { table-layout: fixed; width: auto; min-width: 100%; font-size: .86rem; }
+  .grade-tabela th, .grade-tabela td { width: 40px; padding: .28rem .15rem; text-align: center; }
+  .grade-tabela th.canto, .grade-tabela .quem { width: 9.5rem; text-align: left; position: sticky; left: 0; z-index: 2; background: var(--fundo); }
+  .grade-tabela .quem { padding: .28rem .55rem .28rem 0; font-weight: 500; font-size: .84rem; border-bottom: 1px solid var(--linha); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .grade-tabela thead th { border-bottom: 1px solid var(--linha-forte); white-space: normal; }
+  .grade-tabela thead th i { display: block; font-style: normal; font-size: .64rem; font-weight: 500; color: var(--tinta-mid); }
+  .grade-tabela thead th b { display: block; font-size: .84rem; color: var(--tinta); font-variant-numeric: tabular-nums; }
+  .grade-tabela td { border-bottom: 1px solid var(--linha); }
+  .grade-tabela .fds { background: color-mix(in srgb, var(--superficie) 45%, transparent); }
+  .grade-tabela .vazia { color: var(--linha-forte); }
+  .pino { width: 100%; padding: .22rem 0; border: 1px solid var(--cor); border-radius: 7px; background: color-mix(in srgb, var(--cor) 16%, transparent); color: var(--cor); font: 600 .76rem/1.2 Archivo, sans-serif; cursor: pointer; }
+  .pino:hover { background: color-mix(in srgb, var(--cor) 32%, transparent); }
+  .pino.mudou { outline: 2px solid var(--sol); outline-offset: 1px; }
+  .grade-tabela td.falta { color: var(--coral); font: 600 .66rem/1.15 Archivo, sans-serif; }
+  .grade-tabela tfoot td { padding: .5rem .15rem; font-size: .66rem; line-height: 1.15; font-weight: 600; color: var(--ciano); border-bottom: 0; }
+  .grade-tabela tfoot td.falha { color: var(--coral); }
+  .grade-tabela tfoot .quem { color: var(--tinta-mid); font-weight: 500; }
+
+  .legenda-turnos { display: flex; flex-wrap: wrap; gap: .5rem 1.2rem; margin-top: 1rem; font-size: .84rem; color: var(--tinta-mid); }
+  .legenda-turnos span::before { content: ""; display: inline-block; width: 9px; height: 9px; margin-right: .45rem; border-radius: 2px; background: var(--cor); }
+  .dica { margin-top: .8rem; font-size: .86rem; color: var(--tinta-mid); }
+
+  .cobre { margin-top: 1.6rem; }
+  .cobre ul { margin: 0; padding: 0; list-style: none; display: grid; gap: .35rem; font-size: .92rem; }
+  .cobre li { display: grid; grid-template-columns: minmax(0, 5rem) minmax(0, 1fr); gap: .3rem 1rem; padding: .4rem 0; border-top: 1px solid var(--linha); }
+  .cobre li:first-child { border-top: 0; }
+  .cobre li b { font-weight: 600; }
+  .cobre .quando { color: var(--tinta-mid); font-size: .86rem; }
+
+  @media (max-width: 640px) {
+    .grade-tabela th.canto, .grade-tabela .quem { width: 6.5rem; }
+    .cobre li { grid-template-columns: 1fr; }
+  }
+
+  @media print {
+    @page { size: landscape; margin: 12mm; }
+    /* o navegador não imprime fundo: a paleta escura do site sairia branco no branco, então a folha tem tokens próprios */
+    :root, :root[data-theme="dark"], :root[data-theme="light"] {
+      --fundo: #fff; --fundo-2: #fff; --superficie: #fff;
+      --tinta: #000; --tinta-mid: #4A4A4A; --linha: #C4C4C4; --linha-forte: #8A8A8A;
+      --coral: #B3261E; --coral-luz: #C2410C; --azul: #1E3A8A; --azul-fundo: #DDE3F5;
+      --ciano: #0F5C6B; --sol: #8A5A00; --grade: none;
+      color-scheme: light;
+    }
+    body { background: #fff; color: #000; }
+    body > header, footer, .fecho, .lida, .ferramentas, .abertura, .cobre, .dica, .descartados { display: none; }
+    .resultado { padding: 0; animation: none; }
+    .rolagem { overflow: visible; margin: 0; padding: 0; }
+    .grade-tabela { width: 100%; min-width: 0; font-size: .7rem; color: #000; }
+    .grade-tabela th, .grade-tabela td { width: auto; color: #000; }
+    .grade-tabela .quem, .grade-tabela th.canto { background: #fff; }
+    .grade-tabela .vazia { color: #9A9A9A; }
+    .grade-tabela .fds { background: none; }
+    .pino { border-radius: 4px; border-color: #6B6B6B; background: #fff; color: #000; }
+    .pino.mudou { outline-color: #8A5A00; }
+    .grade-tabela td.falta { color: #B3261E; }
+    .legenda-turnos { color: #000; }
+  }
+</style>
+
+<body data-demo="escala">
+
+<header>
+  <div class="env barra">
+    <a class="marca" href="https://hightide.site/" aria-label="High Tide, voltar ao site">
+      <img class="so-escuro" src="../../telas/logo-escura.webp" width="524" height="120" alt="High Tide">
+      <img class="so-claro" src="../../telas/logo-clara.webp" width="524" height="120" alt="" aria-hidden="true">
+      <small>Gerador de escala</small>
+    </a>
+    <nav>
+      <a class="item" href="https://hightide.site/">Voltar ao site</a>
+      <button class="tema" id="tema" type="button" aria-label="Alternar tema claro e escuro">
+        <svg class="sol" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4"/></svg>
+        <svg class="lua" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z"/></svg>
+      </button>
+      <a class="btn" href="https://hightide.site/#orcamento">Pedir orçamento</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section class="abertura env" id="abertura">
+    <div class="abertura__grade">
+    <div class="abertura__texto">
+    <h1>A escala do mês pronta, e refeita quando alguém falta.</h1>
+    <p class="lead">Diga quem é a equipe, quais são os turnos e quem folga quando. A escala sai respeitando descanso, folga fixa e limite de dias na semana — e quando alguém avisa que não vem, ela se refaz dali em diante.</p>
+    <p class="local">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+      <span><b>Nada sai do seu navegador.</b> Os nomes e os turnos ficam aqui, na sua máquina, e não são enviados a servidor nenhum — nem ao nosso.</span>
+    </p>
+    </div>
+    <aside class="entra-sai" aria-label="O que entra e o que sai">
+      <div class="entra"><span class="rotulo">Entra</span><ul>
+        <li>A equipe, com folga fixa e férias marcadas</li>
+        <li>Os turnos, o horário e quantas pessoas cada um pede</li>
+        <li>Descanso mínimo e limite de dias seguidos</li>
+      </ul></div>
+      <span class="seta" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v16M6 14l6 6 6-6"/></svg></span>
+      <div class="sai"><span class="rotulo">Sai</span><ul>
+        <li>A grade do mês, pessoa por pessoa e dia por dia</li>
+        <li>Noites e fins de semana equilibrados entre quem pode fazê-los</li>
+        <li>CSV da grade e do dia a dia, prontos para o Excel</li>
+      </ul></div>
+    </aside>
+    </div>
+
+    <div class="formulario" id="formulario">
+      <fieldset>
+        <legend>O mês e as regras</legend>
+        <div class="campos dupla">
+          <div class="campo">
+            <label for="mes">Mês da escala</label>
+            <input type="month" id="mes">
+          </div>
+          <div class="campo">
+            <label for="descanso">Descanso mínimo entre turnos (horas)</label>
+            <input type="number" id="descanso" class="num" min="0" max="24" step="1" value="11">
+          </div>
+          <div class="campo">
+            <label for="consecutivos">Máximo de dias seguidos trabalhando</label>
+            <input type="number" id="consecutivos" class="num" min="1" max="31" step="1" value="6">
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Turnos</legend>
+        <div class="cabeca">
+          <p>Nome, horário, quantas pessoas por turno e em que dias ele acontece.</p>
+          <button class="btn discreto mini" type="button" id="add-turno">Adicionar turno</button>
+        </div>
+        <div id="turnos"></div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Equipe</legend>
+        <div class="cabeca">
+          <p>Folga fixa é o dia da semana em que a pessoa nunca entra. Ausência cobre férias, atestado ou treinamento.</p>
+          <button class="btn discreto mini" type="button" id="add-pessoa">Adicionar pessoa</button>
+        </div>
+        <div id="pessoas"></div>
+        <div class="campo colar">
+          <label for="colar">Ou cole os nomes, um por linha</label>
+          <textarea id="colar" rows="3" placeholder="Ana Prado&#10;Bruno Lima&#10;Carla Nunes"></textarea>
+          <div><button class="btn discreto mini" type="button" id="add-colados">Adicionar essa lista</button></div>
+        </div>
+      </fieldset>
+
+      <div class="acoes">
+        <button class="btn" type="button" id="gerar">Gerar escala</button>
+        <button class="btn discreto" type="button" id="exemplo">Ver com uma equipe de exemplo</button>
+        <span class="aviso" id="erro" role="alert" hidden></span>
+      </div>
+    </div>
+  </section>
+
+  <section class="resultado env" id="resultado" hidden>
+    <div class="lida">
+      <div class="avisos" id="lida"></div>
+      <button class="btn discreto" type="button" id="outra">Mudar a equipe</button>
+    </div>
+
+    <div id="corpo">
+      <div class="painel">
+        <h2 class="resumo" id="resumo"></h2>
+        <div class="regua" id="regua" aria-label="Como os turnos do mês se dividem">
+          <div class="regua__barra" id="regua-barra"></div>
+          <div class="regua__legenda" id="regua-legenda"></div>
+        </div>
+      </div>
+
+      <div class="kpis" id="kpis"></div>
+
+      <div class="ferramentas">
+        <div class="filtros" role="group" aria-label="Impressão">
+          <button type="button" id="imprimir">Imprimir a grade</button>
+        </div>
+        <div class="exportar">
+          <button class="btn discreto" type="button" id="baixar-grade">Baixar a grade</button>
+          <button class="btn discreto" type="button" id="baixar-dia">Baixar o dia a dia</button>
+          <button class="btn discreto" type="button" id="copiar">Copiar a grade</button>
+          <span class="copiado" id="copiado" hidden></span>
+        </div>
+      </div>
+
+      <div class="rolagem" id="grade"></div>
+      <div class="legenda-turnos" id="legenda"></div>
+      <p class="dica">Clique numa célula para marcar que a pessoa faltou: só as vagas daquele dia são refeitas, e quem cobriu fica destacado.</p>
+
+      <div class="grupo cobre" id="falta" hidden>
+        <h3>Quem cobre <small id="falta-texto"></small></h3>
+        <div class="grupo__corpo">
+          <ul id="falta-lista"></ul>
+          <p style="margin-top:1rem"><button class="btn discreto mini" type="button" id="desfazer">Desfazer a falta</button></p>
+        </div>
+      </div>
+
+      <details class="descartados" id="descobertos" hidden>
+        <summary id="descobertos-titulo"></summary>
+        <ul id="descobertos-lista"></ul>
+      </details>
+
+      <div class="rolagem">
+        <table id="tabela">
+          <thead>
+            <tr>
+              <th>Pessoa</th>
+              <th class="num">Turnos</th>
+              <th class="num">Noites</th>
+              <th class="num">Fins de semana</th>
+              <th class="num">Dias seguidos</th>
+            </tr>
+          </thead>
+          <tbody id="porpessoa"></tbody>
+          <tfoot><tr><td id="rodape-nota"></td><td class="num" id="rodape-total"></td><td colspan="3"></td></tr></tfoot>
+        </table>
+      </div>
+    </div>
+
+    <div class="aviso-vazio" id="vazio" hidden></div>
+
+    <div class="fecho"><div class="fecho__grade">
+      <div>
+      <h2>Quer isso rodando toda semana, sozinho, com a sua equipe?</h2>
+      <p>Esta é uma amostra. Na sua empresa, a escala nasce do quadro de pessoal que você já mantém, avisa cada um pelo WhatsApp e se refaz sozinha quando chega o atestado — sem ninguém remontar a planilha na sexta à noite.</p>
+      <a class="btn" href="https://hightide.site/#orcamento">Conversar com a High Tide</a>
+      </div>
+      <aside class="outras" id="outras" aria-label="Outras amostras"></aside>
+    </div></div>
+  </section>
+</main>
+
+<footer>
+  <div class="env rodape">
+    <span class="marca">
+      <img class="so-escuro" src="../../telas/logo-escura.webp" width="524" height="120" alt="High Tide">
+      <img class="so-claro" src="../../telas/logo-clara.webp" width="524" height="120" alt="" aria-hidden="true">
+    </span>
+    <span>© 2026 High Tide · hightide.site</span>
+  </div>
+</footer>
+
+<script src="../comum/comum.js"></script>
+<script src="../comum/chrome.js"></script>
+<script src="nucleo.js"></script>
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function plural(n, um, muitos) { return n + ' ' + (n === 1 ? um : muitos); }
+
+  var SEMANA = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+  var CORES = ['var(--ciano)', 'var(--sol)', 'var(--azul)', 'var(--coral-luz)', 'var(--tinta-mid)'];
+  var hoje = COMUM.hojeISO();
+
+  var form = { mes: '', turnos: [], pessoas: [], descanso: 11, consecutivos: 6 };
+  var contador = 0;
+  var estado = { config: null, resultado: null, original: null, mudancas: [], faltas: [] };
+
+  function novoId() { contador++; return 't' + contador; }
+
+  function clonar(v) { return JSON.parse(JSON.stringify(v)); }
+
+  /* ---------- formulário ---------- */
+
+  function turnoVazio() {
+    return { id: novoId(), nome: '', inicio: '08:00', fim: '16:00', vagas: 1, dias: [0, 1, 2, 3, 4, 5, 6] };
+  }
+
+  function pessoaVazia(nome) {
+    return { id: 'p' + (++contador), nome: nome || '', maxSemana: 6, folgas: [], naoFaz: [], de: '', ate: '' };
+  }
+
+  function chips(rotulo, itens, marcados, tipo, indice) {
+    var partes = ['<span class="legenda">' + esc(rotulo) + '</span>'];
+    itens.forEach(function (it) {
+      var ligado = marcados.indexOf(it.valor) >= 0;
+      partes.push('<button type="button" data-chip="' + esc(tipo) + '" data-i="' + indice +
+        '" data-valor="' + esc(it.valor) + '" aria-pressed="' + (ligado ? 'true' : 'false') + '">' +
+        esc(it.rotulo) + '</button>');
+    });
+    return '<div class="filtros chips larga">' + partes.join('') + '</div>';
+  }
+
+  function diasDaSemana() {
+    return SEMANA.map(function (nome, i) { return { valor: String(i), rotulo: nome }; });
+  }
+
+  /* o campo é gerado em lote: sem <label for>, quem lê a tela precisa do aria-label com o índice */
+  function campo(rotulo, aria, dentro, classe) {
+    return '<div class="campo' + (classe ? ' ' + classe : '') + '"><label><small>' + esc(rotulo) + '</small>' +
+      dentro.replace('<input ', '<input aria-label="' + esc(aria) + '" ') + '</label></div>';
+  }
+
+  function renderTurnos() {
+    $('turnos').innerHTML = form.turnos.map(function (t, i) {
+      var n = i + 1;
+      return '<div class="linha">' +
+        campo('Nome', 'Nome do turno ' + n, '<input type="text" data-campo="nome" data-lista="turnos" data-i="' + i + '" value="' + esc(t.nome) + '" placeholder="Manhã">') +
+        campo('Começa', 'Hora em que o turno ' + n + ' começa', '<input type="time" data-campo="inicio" data-lista="turnos" data-i="' + i + '" value="' + esc(t.inicio) + '">') +
+        campo('Termina', 'Hora em que o turno ' + n + ' termina', '<input type="time" data-campo="fim" data-lista="turnos" data-i="' + i + '" value="' + esc(t.fim) + '">') +
+        campo('Pessoas', 'Pessoas por vez no turno ' + n, '<input type="number" class="num" min="0" max="20" data-campo="vagas" data-lista="turnos" data-i="' + i + '" value="' + esc(t.vagas) + '">') +
+        '<div class="some"><button class="apagar" type="button" data-apagar="turnos" data-i="' + i + '" aria-label="Remover o turno ' + n + '">✕</button></div>' +
+        chips('Nos dias', diasDaSemana(), t.dias.map(String), 'dias', i) +
+        '<p class="larga sem-dias" data-sem-dias="' + i + '"' + (t.dias.length ? ' hidden' : '') +
+        '>Sem nenhum dia marcado, este turno não vai acontecer.</p>' +
+        '</div>';
+    }).join('') || '<p class="dica">Nenhum turno ainda. Adicione pelo menos um.</p>';
+  }
+
+  function renderPessoas() {
+    var turnos = form.turnos.map(function (t) {
+      return { valor: t.id, rotulo: COMUM.limpo(t.nome) || 'sem nome' };
+    });
+    $('pessoas').innerHTML = form.pessoas.map(function (p, i) {
+      var n = i + 1;
+      return '<div class="linha">' +
+        campo('Nome', 'Nome da pessoa ' + n, '<input type="text" data-campo="nome" data-lista="pessoas" data-i="' + i + '" value="' + esc(p.nome) + '" placeholder="Nome de quem entra na escala">', 'larga') +
+        campo('Máx. por semana', 'Máximo de turnos por semana da pessoa ' + n, '<input type="number" class="num" min="1" max="7" data-campo="maxSemana" data-lista="pessoas" data-i="' + i + '" value="' + esc(p.maxSemana) + '">') +
+        campo('Ausente de', 'Primeiro dia de ausência da pessoa ' + n, '<input type="date" data-campo="de" data-lista="pessoas" data-i="' + i + '" value="' + esc(p.de) + '">') +
+        campo('até', 'Último dia de ausência da pessoa ' + n, '<input type="date" data-campo="ate" data-lista="pessoas" data-i="' + i + '" value="' + esc(p.ate) + '">') +
+        '<div class="some"><button class="apagar" type="button" data-apagar="pessoas" data-i="' + i + '" aria-label="Remover a pessoa ' + n + '">✕</button></div>' +
+        chips('Folga fixa', diasDaSemana(), p.folgas.map(String), 'folgas', i) +
+        (turnos.length ? chips('Não faz', turnos, p.naoFaz, 'naoFaz', i) : '') +
+        '</div>';
+    }).join('') || '<p class="dica">Nenhuma pessoa ainda. Adicione ou cole a lista abaixo.</p>';
+  }
+
+  function renderForm() {
+    $('mes').value = form.mes;
+    $('descanso').value = form.descanso;
+    $('consecutivos').value = form.consecutivos;
+    renderTurnos();
+    renderPessoas();
+  }
+
+  function alternar(alvo, valor) {
+    var i = alvo.indexOf(valor);
+    if (i >= 0) alvo.splice(i, 1); else alvo.push(valor);
+  }
+
+  function aoMudarCampo(e) {
+    var el = e.target;
+    if (!el.dataset || !el.dataset.campo) return;
+    var item = form[el.dataset.lista][+el.dataset.i];
+    if (!item) return;
+    item[el.dataset.campo] = el.type === 'number' ? Math.max(0, Math.floor(Number(el.value) || 0)) : el.value;
+    /* o chip "Não faz" carrega o nome do turno: sem isso ele fica com o nome antigo até o próximo render */
+    if (el.dataset.lista === 'turnos' && el.dataset.campo === 'nome') renderPessoas();
+  }
+
+  function avisarSemDias(turno, indice) {
+    var aviso = $('turnos').querySelector('[data-sem-dias="' + indice + '"]');
+    if (aviso) aviso.hidden = turno.dias.length > 0;
+  }
+
+  function aoClicarNaLista(e) {
+    var chip = e.target.closest('button[data-chip]');
+    if (chip) {
+      var qual = chip.dataset.chip;
+      var lista = qual === 'dias' ? form.turnos : form.pessoas;
+      var item = lista[+chip.dataset.i];
+      if (!item) return;
+      var alvo = qual === 'dias' ? item.dias : (qual === 'folgas' ? item.folgas : item.naoFaz);
+      alternar(alvo, qual === 'naoFaz' ? chip.dataset.valor : +chip.dataset.valor);
+      chip.setAttribute('aria-pressed', chip.getAttribute('aria-pressed') === 'true' ? 'false' : 'true');
+      if (qual === 'dias') avisarSemDias(item, chip.dataset.i);
+      return;
+    }
+    var apagar = e.target.closest('button[data-apagar]');
+    if (!apagar) return;
+    form[apagar.dataset.apagar].splice(+apagar.dataset.i, 1);
+    renderTurnos();
+    renderPessoas();
+  }
+
+  ['turnos', 'pessoas'].forEach(function (id) {
+    $(id).addEventListener('input', aoMudarCampo);
+    $(id).addEventListener('change', aoMudarCampo);
+    $(id).addEventListener('click', aoClicarNaLista);
+  });
+
+  function ehMaxSemana(el) { return el.dataset && el.dataset.campo === 'maxSemana'; }
+
+  $('pessoas').addEventListener('focusin', function (e) {
+    if (ehMaxSemana(e.target)) e.target.dataset.anterior = e.target.value;
+  });
+
+  /* campo apagado não pode virar "7 turnos por semana" caladamente: volta ao que estava */
+  $('pessoas').addEventListener('focusout', function (e) {
+    var el = e.target;
+    if (!ehMaxSemana(el)) return;
+    var atual = Math.floor(Number(el.value));
+    if (isFinite(atual) && atual >= 1) return;
+    var anterior = Math.floor(Number(el.dataset.anterior));
+    var vale = isFinite(anterior) && anterior >= 1 ? anterior : 6;
+    el.value = String(vale);
+    var pessoa = form.pessoas[+el.dataset.i];
+    if (pessoa) pessoa.maxSemana = vale;
+  });
+
+  $('mes').addEventListener('change', function () { form.mes = this.value; });
+  $('descanso').addEventListener('input', function () { form.descanso = Number(this.value) || 0; });
+  $('consecutivos').addEventListener('input', function () { form.consecutivos = Math.max(1, Number(this.value) || 1); });
+
+  $('add-turno').addEventListener('click', function () {
+    form.turnos.push(turnoVazio());
+    renderTurnos();
+    renderPessoas();
+  });
+  $('add-pessoa').addEventListener('click', function () {
+    form.pessoas.push(pessoaVazia(''));
+    renderPessoas();
+  });
+  $('add-colados').addEventListener('click', function () {
+    var nomes = $('colar').value.split(/\r?\n/).map(function (n) { return COMUM.limpo(n); }).filter(Boolean);
+    if (!nomes.length) return;
+    nomes.forEach(function (n) { form.pessoas.push(pessoaVazia(n)); });
+    $('colar').value = '';
+    renderPessoas();
+  });
+
+  /* ---------- do formulário para a configuração ---------- */
+
+  function configDoForm() {
+    return {
+      mes: form.mes,
+      turnos: form.turnos.map(function (t, i) {
+        return {
+          id: t.id, nome: COMUM.limpo(t.nome) || 'Turno ' + (i + 1),
+          inicio: t.inicio, fim: t.fim, vagas: t.vagas, dias: t.dias.slice()
+        };
+      }),
+      pessoas: form.pessoas.map(function (p, i) {
+        return {
+          id: p.id, nome: COMUM.limpo(p.nome) || 'Pessoa ' + (i + 1),
+          maxSemana: p.maxSemana, folgas: p.folgas.slice(), naoFaz: p.naoFaz.slice(),
+          ausencias: p.de || p.ate ? [{ de: p.de || p.ate, ate: p.ate || p.de }] : []
+        };
+      }),
+      regras: { descansoHoras: form.descanso, maxConsecutivos: form.consecutivos }
+    };
+  }
+
+  function formDoExemplo() {
+    var cfg = ESC.exemplo(hoje);
+    contador = 0;
+    form.mes = cfg.mes;
+    form.descanso = cfg.regras.descansoHoras;
+    form.consecutivos = cfg.regras.maxConsecutivos;
+    form.turnos = cfg.turnos.map(function (t) {
+      return { id: t.id, nome: t.nome, inicio: t.inicio, fim: t.fim, vagas: t.vagas, dias: t.dias.slice() };
+    });
+    form.pessoas = cfg.pessoas.map(function (p) {
+      var a = p.ausencias[0];
+      return {
+        id: p.id, nome: p.nome, maxSemana: p.maxSemana, folgas: p.folgas.slice(),
+        naoFaz: p.naoFaz.slice(), de: a ? a.de : '', ate: a ? a.ate : ''
+      };
+    });
+    renderForm();
+  }
+
+  function avisarForm(msg) {
+    var el = $('erro');
+    el.textContent = msg;
+    el.hidden = !msg;
+  }
+
+  function gerar() {
+    var cfg = configDoForm();
+    if (!/^\d{4}-\d{2}$/.test(cfg.mes)) return avisarForm('Escolha o mês da escala.');
+    if (!cfg.turnos.length) return avisarForm('Adicione pelo menos um turno.');
+    if (!cfg.pessoas.length) return avisarForm('Adicione pelo menos uma pessoa.');
+    avisarForm('');
+    estado.config = cfg;
+    estado.resultado = ESC.gerar(cfg);
+    estado.original = { config: clonar(cfg), resultado: estado.resultado };
+    estado.mudancas = [];
+    estado.faltas = [];
+    mostrar();
+  }
+
+  $('gerar').addEventListener('click', gerar);
+  $('exemplo').addEventListener('click', function () { formDoExemplo(); gerar(); });
+  $('outra').addEventListener('click', function () { esconderFalta(); HT.voltar(); });
+
+  /* ---------- resultado ---------- */
+
+  function nomes() {
+    var mapa = {};
+    estado.config.pessoas.forEach(function (p) { mapa[p.id] = p.nome; });
+    return mapa;
+  }
+
+  function coresPorTurno() {
+    var mapa = {};
+    estado.config.turnos.forEach(function (t, i) { mapa[t.id] = CORES[i % CORES.length]; });
+    return mapa;
+  }
+
+  function faltamPorDia() {
+    var mapa = {};
+    estado.resultado.descobertos.forEach(function (d) { mapa[d.dia] = (mapa[d.dia] || 0) + d.faltam; });
+    return mapa;
+  }
+
+  function mostrar() {
+    var cfg = estado.config, r = estado.resultado;
+    var dias = ESC.diasDoMes(cfg.mes);
+    $('lida').innerHTML = '<span><b>' + esc(COMUM.formatarData(dias[0]).slice(3)) + '</b></span>' +
+      '<span>' + esc(plural(cfg.pessoas.length, 'pessoa', 'pessoas')) + '</span>' +
+      '<span>' + esc(plural(cfg.turnos.length, 'turno', 'turnos')) + '</span>' +
+      '<span>' + esc(plural(dias.length, 'dia', 'dias')) + '</span>';
+
+    var temGrade = r.cobertura.vagas > 0;
+    $('corpo').hidden = !temGrade;
+    $('vazio').hidden = temGrade;
+    if (!temGrade) {
+      $('vazio').textContent = 'Nenhum turno para escalar neste mês. Confira as vagas de cada turno e os dias da semana em que ele acontece.';
+    } else {
+      renderResumo();
+      renderKpis();
+      renderGrade();
+      renderLegenda();
+      renderDescobertos();
+      renderPorPessoa();
+    }
+    HT.mostrarResultado();
+  }
+
+  function renderResumo() {
+    var r = estado.resultado;
+    var faltando = r.cobertura.vagas - r.cobertura.preenchidas;
+    $('resumo').innerHTML = '<span class="valor">' + esc(r.cobertura.pct.toFixed(0) + '% coberto') + '</span> em ' +
+      esc(plural(r.cobertura.vagas, 'turno do mês', 'turnos do mês')) + '.<small>' +
+      esc(faltando
+        ? plural(faltando, 'vaga ficou sem ninguém', 'vagas ficaram sem ninguém') + ' — o motivo de cada uma está logo abaixo da grade.'
+        : 'Todas as vagas fecharam respeitando folga fixa, descanso mínimo e limite de dias seguidos.') +
+      '</small>';
+
+    var cor = coresPorTurno();
+    var faixas = estado.config.turnos.map(function (t) {
+      var n = 0;
+      estado.config.pessoas.forEach(function (p) { n += estado.resultado.porPessoa[p.id].porTurno[t.id] || 0; });
+      return { chave: t.id, rotulo: t.nome, cor: cor[t.id], n: n, nota: t.vagas + ' por dia' };
+    });
+    if (faltando) faixas.push({ chave: 'descoberto', rotulo: 'Descoberto', cor: 'var(--coral)', n: faltando, nota: 'vagas sem ninguém' });
+
+    var soma = faixas.reduce(function (s, f) { return s + f.n; }, 0) || 1;
+    $('regua-barra').innerHTML = faixas.filter(function (f) { return f.n > 0; }).map(function (f, i) {
+      return '<i data-faixa="' + esc(f.chave) + '" style="--cor:' + f.cor + ';flex-basis:' +
+        (f.n / soma * 100).toFixed(2) + '%;animation-delay:' + (i * 90) + 'ms" title="' + esc(f.rotulo) + '"></i>';
+    }).join('');
+    $('regua-legenda').innerHTML = faixas.map(function (f) {
+      return '<div data-faixa="' + esc(f.chave) + '" style="--cor:' + f.cor + '">' + esc(f.rotulo) +
+        '<b>' + esc(String(f.n)) + '</b><small>' + esc(f.nota) + '</small></div>';
+    }).join('');
+  }
+
+  function faixa(valores) {
+    if (!valores.length) return '0';
+    var min = Math.min.apply(null, valores), max = Math.max.apply(null, valores);
+    return min === max ? String(min) : min + '–' + max;
+  }
+
+  function renderKpis() {
+    var cfg = estado.config, r = estado.resultado;
+    var podeNoite = cfg.pessoas.filter(function (p) {
+      return cfg.turnos.some(function (t) { return ESC.ehNoite(t) && p.naoFaz.indexOf(t.id) < 0; });
+    });
+    var noites = podeNoite.map(function (p) { return r.porPessoa[p.id].noites; });
+    var fds = cfg.pessoas.map(function (p) { return r.porPessoa[p.id].fds; });
+    var descobertas = r.cobertura.vagas - r.cobertura.preenchidas;
+
+    var itens = [
+      ['Cobertura', r.cobertura.pct.toFixed(0) + '%', plural(r.cobertura.preenchidas, 'vaga preenchida', 'vagas preenchidas')],
+      ['Turnos descobertos', String(descobertas), descobertas ? 'precisam de alguém' : 'nenhum buraco na escala'],
+      ['Noites por pessoa', faixa(noites), noites.length ? 'entre quem faz noite' : 'ninguém faz noite'],
+      ['Fins de semana por pessoa', faixa(fds), 'sábados e domingos escalados']
+    ];
+    $('kpis').innerHTML = itens.map(function (k) {
+      return '<div class="kpi">' + esc(k[0]) + '<b>' + esc(k[1]) + '</b><small>' + esc(k[2]) + '</small></div>';
+    }).join('');
+  }
+
+  function mudou(dia, pessoaId) {
+    return estado.mudancas.some(function (m) {
+      return m.dia === dia && (m.entrou === pessoaId || m.saiu === pessoaId);
+    });
+  }
+
+  function faltou(dia, pessoaId) {
+    return estado.faltas.some(function (f) { return f.dia === dia && f.pessoaId === pessoaId; });
+  }
+
+  function renderGrade() {
+    var cfg = estado.config, r = estado.resultado;
+    var dias = ESC.diasDoMes(cfg.mes);
+    var cor = coresPorTurno();
+    var siglas = ESC.siglas(cfg.turnos), nomeTurno = {};
+    cfg.turnos.forEach(function (t) { nomeTurno[t.id] = t.nome; });
+
+    var onde = {};
+    dias.forEach(function (dia) {
+      onde[dia] = {};
+      Object.keys(r.grade[dia] || {}).forEach(function (turnoId) {
+        r.grade[dia][turnoId].forEach(function (id) { onde[dia][id] = turnoId; });
+      });
+    });
+
+    var fimDeSemana = dias.map(function (dia) {
+      var ds = COMUM.diaSemana(dia);
+      return ds === 0 || ds === 6;
+    });
+
+    var cabeca = '<tr><th class="canto" scope="col">Pessoa</th>' + dias.map(function (dia, i) {
+      return '<th scope="col" class="' + (fimDeSemana[i] ? 'fds' : '') + '"><i>' +
+        esc(SEMANA[COMUM.diaSemana(dia)]) + '</i><b>' + esc(dia.slice(8)) + '</b></th>';
+    }).join('') + '</tr>';
+
+    var corpo = cfg.pessoas.map(function (p) {
+      return '<tr><th class="quem" scope="row" title="' + esc(p.nome) + '">' + esc(p.nome) + '</th>' +
+        dias.map(function (dia, i) {
+          var turnoId = onde[dia][p.id];
+          var classe = fimDeSemana[i] ? 'fds' : '';
+          if (faltou(dia, p.id)) {
+            return '<td class="falta ' + classe + '" title="' + esc(p.nome + ' faltou em ' + COMUM.formatarData(dia)) + '">falta</td>';
+          }
+          if (!turnoId) return '<td class="vazia ' + classe + '">·</td>';
+          return '<td class="' + classe + '"><button type="button" class="pino' + (mudou(dia, p.id) ? ' mudou' : '') +
+            '" style="--cor:' + cor[turnoId] + '" data-dia="' + esc(dia) + '" data-pessoa="' + esc(p.id) +
+            '" title="' + esc(nomeTurno[turnoId] + ' em ' + COMUM.formatarData(dia) + ' — clique para marcar falta') +
+            '">' + esc(siglas[turnoId]) + '</button></td>';
+        }).join('') + '</tr>';
+    }).join('');
+
+    var faltam = faltamPorDia();
+    var rodape = '<tr><td class="quem">cobertura</td>' + dias.map(function (dia, i) {
+      var n = faltam[dia] || 0;
+      return '<td class="' + (fimDeSemana[i] ? 'fds ' : '') + (n ? 'falha' : '') + '">' +
+        (n ? esc('faltam ' + n) : '✓') + '</td>';
+    }).join('') + '</tr>';
+
+    $('grade').innerHTML = '<table class="fixa grade-tabela"><thead>' + cabeca + '</thead><tbody>' +
+      corpo + '</tbody><tfoot>' + rodape + '</tfoot></table>';
+  }
+
+  function renderLegenda() {
+    var cor = coresPorTurno();
+    var siglas = ESC.siglas(estado.config.turnos);
+    $('legenda').innerHTML = estado.config.turnos.map(function (t) {
+      return '<span style="--cor:' + cor[t.id] + '">' + esc(siglas[t.id] + ' · ' + t.nome + ' · ' + t.inicio + '–' + t.fim) +
+        ' · ' + esc(plural(t.vagas, 'pessoa', 'pessoas')) + '</span>';
+    }).join('');
+  }
+
+  function renderDescobertos() {
+    var caixa = $('descobertos');
+    var lista = estado.resultado.descobertos;
+    if (!lista.length) { caixa.hidden = true; return; }
+    var nomeTurno = {};
+    estado.config.turnos.forEach(function (t) { nomeTurno[t.id] = t.nome; });
+    caixa.hidden = false;
+    /* refazer a lista não pode fechar o que o visitante abriu para ler os motivos */
+    if (!caixa.dataset.montado) {
+      caixa.open = false;
+      caixa.dataset.montado = '1';
+    }
+    $('descobertos-titulo').textContent = plural(lista.length, 'turno ficou descoberto', 'turnos ficaram descobertos') + ' — ver por quê';
+    $('descobertos-lista').innerHTML = lista.map(function (d) {
+      return '<li><span>' + esc(COMUM.formatarData(d.dia) + ' · ' + (nomeTurno[d.turnoId] || d.turnoId) +
+        ' · ' + plural(d.faltam, 'vaga', 'vagas')) + '</span><span>' + esc(d.motivo) + '</span></li>';
+    }).join('');
+  }
+
+  function renderPorPessoa() {
+    var cfg = estado.config, r = estado.resultado;
+    $('porpessoa').innerHTML = cfg.pessoas.map(function (p, i) {
+      var e = r.porPessoa[p.id];
+      var folgas = p.folgas.map(function (d) { return SEMANA[d]; }).join(', ');
+      return '<tr class="linha" style="--i:' + i + '">' +
+        '<td class="titulo">' + esc(p.nome) + '<small>' + esc(folgas ? 'folga fixa: ' + folgas : 'sem folga fixa') + '</small></td>' +
+        '<td class="num"><span class="rot">Turnos</span>' + esc(String(e.turnos)) + '</td>' +
+        '<td class="num"><span class="rot">Noites</span>' + esc(String(e.noites)) + '</td>' +
+        '<td class="num"><span class="rot">Fins de semana</span>' + esc(String(e.fds)) + '</td>' +
+        '<td class="num"><span class="rot">Dias seguidos</span>' + esc(String(e.consecutivosMax)) + '</td>' +
+        '</tr>';
+    }).join('');
+    $('rodape-nota').textContent = plural(cfg.pessoas.length, 'pessoa na escala', 'pessoas na escala');
+    $('rodape-total').textContent = String(r.cobertura.preenchidas);
+  }
+
+  /* ---------- falta ---------- */
+
+  function esconderFalta() {
+    $('falta').hidden = true;
+    estado.mudancas = [];
+    estado.faltas = [];
+  }
+
+  function marcarFalta(pessoaId, dia) {
+    var s = ESC.simularFalta(estado.config, estado.resultado.grade, pessoaId, dia);
+    var cfg = clonar(estado.config);
+    cfg.pessoas.forEach(function (p) {
+      if (p.id === pessoaId) p.ausencias = p.ausencias.concat([{ de: dia, ate: dia }]);
+    });
+    estado.config = cfg;
+    estado.resultado = s.resultado;
+    estado.mudancas = s.mudancas;
+    estado.faltas = estado.faltas.concat([{ pessoaId: pessoaId, dia: dia }]);
+
+    var quem = nomes();
+    var nomeTurno = {};
+    cfg.turnos.forEach(function (t) { nomeTurno[t.id] = t.nome; });
+    $('falta-texto').textContent = 'no lugar de ' + (quem[pessoaId] || pessoaId) + ' em ' + COMUM.formatarData(dia);
+    $('falta-lista').innerHTML = s.mudancas.length
+      ? s.mudancas.map(function (m) {
+          var texto = m.entrou
+            ? '<b>' + esc(quem[m.entrou] || m.entrou) + '</b> assume ' + esc(nomeTurno[m.turnoId] || m.turnoId) +
+              (m.saiu ? ' no lugar de ' + esc(quem[m.saiu] || m.saiu) : '')
+            : esc(nomeTurno[m.turnoId] || m.turnoId) + ' ficou sem ninguém' +
+              (m.saiu ? ' — ' + esc(quem[m.saiu] || m.saiu) + ' saiu' : '');
+          return '<li><span class="quando">' + esc(COMUM.formatarData(m.dia)) + '</span><span>' + texto + '</span></li>';
+        }).join('')
+      : '<li><span class="quando">—</span><span>A escala não precisou mudar: o turno já estava coberto por quem ficou.</span></li>';
+    $('falta').hidden = false;
+
+    renderResumo();
+    renderKpis();
+    renderGrade();
+    renderDescobertos();
+    renderPorPessoa();
+    $('falta').scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }
+
+  $('grade').addEventListener('click', function (e) {
+    var pino = e.target.closest('.pino');
+    if (pino) marcarFalta(pino.dataset.pessoa, pino.dataset.dia);
+  });
+
+  $('desfazer').addEventListener('click', function () {
+    estado.config = clonar(estado.original.config);
+    estado.resultado = estado.original.resultado;
+    esconderFalta();
+    renderResumo();
+    renderKpis();
+    renderGrade();
+    renderDescobertos();
+    renderPorPessoa();
+  });
+
+  /* ---------- exportar ---------- */
+
+  function nomeArquivo(base) { return base + '-' + estado.config.mes + '.csv'; }
+
+  $('baixar-grade').addEventListener('click', function () {
+    HT.baixar(nomeArquivo('escala'), ESC.csvGrade(estado.config, estado.resultado));
+  });
+  $('baixar-dia').addEventListener('click', function () {
+    HT.baixar(nomeArquivo('escala-dia-a-dia'), ESC.csvPorDia(estado.config, estado.resultado));
+  });
+  $('copiar').addEventListener('click', function () {
+    HT.copiar(COMUM.tsv(ESC.linhasGrade(estado.config, estado.resultado))).then(function (ok) {
+      HT.avisar($('copiado'), ok ? 'Copiado — cole na planilha.' : 'Não deu para copiar — selecione a grade e use Ctrl+C.', ok ? 2500 : 5000);
+    });
+  });
+  $('imprimir').addEventListener('click', function () { window.print(); });
+
+  /* ---------- começo ---------- */
+
+  form.mes = ESC.exemplo(hoje).mes;
+  form.turnos = [
+    { id: novoId(), nome: 'Manhã', inicio: '07:00', fim: '15:00', vagas: 2, dias: [0, 1, 2, 3, 4, 5, 6] },
+    { id: novoId(), nome: 'Tarde', inicio: '15:00', fim: '23:00', vagas: 2, dias: [0, 1, 2, 3, 4, 5, 6] }
+  ];
+  form.pessoas = [pessoaVazia(''), pessoaVazia(''), pessoaVazia('')];
+  renderForm();
+
+  HT.iniciar();
+})();
+</script>

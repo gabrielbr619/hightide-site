@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<title>Leitor de boleto — High Tide</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Cole a linha digitável ou aponte a câmera e receba banco, valor e vencimento de cada boleto, com CSV de contas a pagar. Tudo lido no seu navegador — nada é enviado.">
+<link rel="icon" type="image/png" href="../../telas/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,600..800&family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../comum/base.css">
+
+<style>
+  /* a entrada é texto, não arquivo: o bloco ocupa o lugar da área de soltar do modelo */
+  .abertura .cola { grid-area: solta; }
+  .cola {
+    padding: 1.6rem 1.6rem 1.8rem;
+    border: 1.5px dashed var(--linha-forte); border-radius: 20px;
+    background: color-mix(in srgb, var(--superficie) 32%, transparent);
+  }
+  .cola > label { display: block; margin-bottom: .5rem; font-size: .86rem; color: var(--tinta-mid); }
+  .cola textarea {
+    width: 100%; min-height: 7.5rem; padding: .8rem .9rem; border-radius: 12px;
+    border: 1px solid var(--linha-forte); background: color-mix(in srgb, var(--superficie) 60%, transparent);
+    color: var(--tinta); font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: .95rem; line-height: 1.8; resize: vertical;
+  }
+  .cola textarea:focus { outline: none; border-color: var(--ciano); }
+  .cola textarea::placeholder { color: color-mix(in srgb, var(--tinta-mid) 60%, transparent); }
+  .acoes { display: flex; flex-wrap: wrap; gap: .6rem; margin-top: .9rem; }
+  .cola .aceita { margin-top: 1rem; max-width: 60ch; font-size: .8rem; color: var(--tinta-mid); }
+  .cola .andamento { margin-top: .9rem; font-size: .9rem; color: var(--ciano); }
+  .cola .andamento.erro { color: var(--sol); }
+  .cola .exemplo {
+    margin-top: 1.8rem; padding-top: 1.5rem; border-top: 1px solid var(--linha);
+    display: flex; flex-wrap: wrap; align-items: center; gap: .6rem 1.2rem;
+    color: var(--tinta-mid); font-size: .98rem;
+  }
+
+  .camera { margin-top: 1.3rem; padding-top: 1.3rem; border-top: 1px solid var(--linha); }
+  .camera video {
+    display: block; width: 100%; max-width: 30rem; aspect-ratio: 4 / 3;
+    border-radius: 14px; background: var(--fundo-2); object-fit: cover;
+  }
+  .camera__acoes {
+    display: flex; flex-wrap: wrap; align-items: center; gap: .6rem 1rem;
+    margin-top: .8rem; font-size: .88rem; color: var(--tinta-mid);
+  }
+
+  /* leitura única: o cartão é o resultado inteiro */
+  .cartao {
+    margin-top: 2.6rem; padding: 1.6rem 1.8rem 1.8rem;
+    border: 1px solid var(--linha); border-radius: 18px;
+    background: color-mix(in srgb, var(--superficie) 45%, transparent);
+  }
+  .cartao .banco { font: 600 .72rem/1.3 "JetBrains Mono", monospace; letter-spacing: .07em; text-transform: uppercase; color: var(--ciano); }
+  .cartao h2 { margin-top: .55rem; font-size: clamp(2rem, 7vw, 3.2rem); }
+  .cartao h2 .sem { color: var(--tinta-mid); font-size: .5em; letter-spacing: -0.01em; }
+  .cartao .quando { display: flex; flex-wrap: wrap; align-items: center; gap: .55rem; margin-top: 1rem; font-size: 1.05rem; }
+  .cartao .meta { margin-top: 1.5rem; padding-top: 1.2rem; border-top: 1px solid var(--linha); }
+  .cartao .meta dd.mono { font-size: .8rem; overflow-wrap: anywhere; }
+  .erros { margin-top: 1.3rem; padding: .85rem 1.1rem; border: 1px solid var(--coral); border-radius: 12px; font-size: .92rem; }
+  .erros ul { margin: .4rem 0 0; padding-left: 1.15rem; color: var(--tinta-mid); }
+  .detalhe .erros { margin-top: 1rem; font-size: .88rem; }
+
+  .regua [data-faixa="vencidos"] { --cor: var(--coral); }
+  .regua [data-faixa="semana"]   { --cor: var(--sol); }
+  .regua [data-faixa="depois"]   { --cor: var(--azul); }
+  .regua [data-faixa="semData"]  { --cor: var(--linha-forte); }
+
+  td.titulo .codigo { display: block; margin-top: .15rem; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: .76rem; font-weight: 400; color: var(--tinta-mid); overflow-wrap: anywhere; }
+  td.venc { white-space: nowrap; }
+  tr.linha.torta td.titulo { color: var(--coral); }
+
+  /* no cartão do celular, vencimento e situação dividem a linha e o valor fecha sozinho embaixo */
+  @media (max-width: 640px) {
+    #tabela tbody tr.linha td.num { grid-column: 1 / -1; }
+  }
+  #lote .rolagem { margin-top: 2.6rem; }
+</style>
+
+<body data-demo="boleto">
+
+<header>
+  <div class="env barra">
+    <a class="marca" href="https://hightide.site/" aria-label="High Tide, voltar ao site">
+      <img class="so-escuro" src="../../telas/logo-escura.webp" width="524" height="120" alt="High Tide">
+      <img class="so-claro" src="../../telas/logo-clara.webp" width="524" height="120" alt="" aria-hidden="true">
+      <small>Leitor de boleto</small>
+    </a>
+    <nav>
+      <a class="item" href="https://hightide.site/">Voltar ao site</a>
+      <button class="tema" id="tema" type="button" aria-label="Alternar tema claro e escuro">
+        <svg class="sol" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4"/></svg>
+        <svg class="lua" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z"/></svg>
+      </button>
+      <a class="btn" href="https://hightide.site/#orcamento">Pedir orçamento</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section class="abertura env" id="abertura">
+    <div class="abertura__grade">
+    <div class="abertura__texto">
+    <h1>Cole a linha digitável: banco, valor e vencimento na hora.</h1>
+    <p class="lead">Os boletos chegam por e-mail, por WhatsApp e em papel. Cole as linhas de uma vez, ou aponte a câmera para o código de barras, e saia com a lista do que vence quando — sem digitar 47 dígitos em lugar nenhum.</p>
+    <p class="local">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+      <span><b>Nada sai do seu navegador.</b> Os boletos são lidos aqui, na sua máquina, e não são enviados a servidor nenhum — nem ao nosso.</span>
+    </p>
+    </div>
+    <aside class="entra-sai" aria-label="O que entra e o que sai">
+      <div class="entra"><span class="rotulo">Entra</span><ul>
+        <li>A linha digitável, de 47 ou 48 dígitos</li>
+        <li>Ou o código de barras pela câmera do celular</li>
+        <li>Uma por linha, quantas você tiver</li>
+      </ul></div>
+      <span class="seta" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v16M6 14l6 6 6-6"/></svg></span>
+      <div class="sai"><span class="rotulo">Sai</span><ul>
+        <li>Banco, valor e vencimento de cada boleto</li>
+        <li>O que já venceu e o que vence na semana</li>
+        <li>CSV de contas a pagar, pronto para o Excel</li>
+      </ul></div>
+    </aside>
+    </div>
+
+    <div class="cola" id="cola">
+      <label for="texto">Cole a linha digitável — uma por linha</label>
+      <textarea id="texto" rows="5" spellcheck="false" autocapitalize="off" autocomplete="off"
+        placeholder="00190.50095 40144.816069 06809.350314 3 37370000000100"></textarea>
+      <div class="acoes">
+        <button class="btn" type="button" id="ler">Ler os boletos</button>
+        <button class="btn discreto" type="button" id="camera">Ler pela câmera</button>
+      </div>
+      <p class="aceita">Boleto bancário de 47 dígitos, conta de água, luz, telefone e tributo de 48, e o código de barras de 44. Pontos, espaços e traços podem ficar — os dígitos verificadores são conferidos aqui mesmo.</p>
+      <p class="andamento" id="andamento" hidden></p>
+
+      <div class="camera" id="camera-card" hidden>
+        <video id="video" playsinline muted></video>
+        <div class="camera__acoes">
+          <span id="camera-aviso">Aponte para o código de barras do boleto.</span>
+          <button class="btn discreto" type="button" id="parar">Parar a câmera</button>
+        </div>
+      </div>
+
+      <div class="exemplo">
+        <span>Não tem boleto à mão?</span>
+        <button class="btn discreto" type="button" id="exemplo">Ver com boletos de exemplo</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="resultado env" id="resultado" hidden>
+    <div class="lida">
+      <div class="avisos" id="lida"></div>
+      <button class="btn discreto" type="button" id="outra">Ler outros boletos</button>
+    </div>
+
+    <div id="cartao" hidden></div>
+
+    <div id="lote" hidden>
+      <div class="painel">
+        <h2 class="resumo" id="resumo"></h2>
+        <div class="regua" id="regua" aria-label="Quando o dinheiro sai">
+          <div class="regua__barra" id="regua-barra"></div>
+          <div class="regua__legenda" id="regua-legenda"></div>
+        </div>
+      </div>
+
+      <div class="rolagem">
+        <table id="tabela">
+          <thead>
+            <tr>
+              <th>Banco</th>
+              <th>Vencimento</th>
+              <th>Situação</th>
+              <th class="num">Valor (R$)</th>
+            </tr>
+          </thead>
+          <tbody id="linhas"></tbody>
+          <tfoot><tr><td colspan="3" id="rodape-nota"></td><td class="num" id="rodape-total"></td></tr></tfoot>
+        </table>
+      </div>
+    </div>
+
+    <div class="ferramentas" id="ferramentas" hidden>
+      <div class="exportar">
+        <button class="btn discreto" type="button" id="baixar">Baixar contas a pagar</button>
+        <button class="btn discreto" type="button" id="copiar">Copiar tabela</button>
+        <span class="copiado" id="copiado" hidden></span>
+      </div>
+    </div>
+
+    <details class="descartados" id="descartados" hidden>
+      <summary id="descartados-titulo"></summary>
+      <ul id="descartados-lista"></ul>
+    </details>
+
+    <div class="fecho"><div class="fecho__grade">
+      <div>
+      <h2>Quer isso rodando toda semana, sozinho, com os seus dados?</h2>
+      <p>Este leitor é uma amostra. Na sua empresa, o boleto que chega por e-mail vira lançamento no contas a pagar com valor e vencimento já conferidos, e o aviso sai no dia certo — sem ninguém digitar 47 dígitos.</p>
+      <a class="btn" href="https://hightide.site/#orcamento">Conversar com a High Tide</a>
+      </div>
+      <aside class="outras" id="outras" aria-label="Outras amostras"></aside>
+    </div></div>
+  </section>
+</main>
+
+<footer>
+  <div class="env rodape">
+    <span class="marca">
+      <img class="so-escuro" src="../../telas/logo-escura.webp" width="524" height="120" alt="High Tide">
+      <img class="so-claro" src="../../telas/logo-clara.webp" width="524" height="120" alt="" aria-hidden="true">
+    </span>
+    <span>© 2026 High Tide · hightide.site</span>
+  </div>
+</footer>
+
+<script src="../comum/comum.js"></script>
+<script src="../comum/chrome.js"></script>
+<script src="nucleo.js"></script>
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var esc = COMUM.esc;
+  var plural = COMUM.plural;
+  var hoje = COMUM.hojeISO();
+  var leituras = [];
+
+  var ZXING = 'https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js';
+
+  function reais(v) { return 'R$ ' + COMUM.formatarValor(v); }
+  function titulo(l) { return l.tipo === 'arrecadacao' ? l.segmento : l.banco.nome; }
+
+  function classeDias(l) {
+    if (!l.valido) return 'erro';
+    if (!l.vencimento) return '';
+    if (l.dias < 0) return 'erro';
+    return l.dias <= 7 ? 'alerta' : 'ok';
+  }
+
+  function faixaDe(l) {
+    if (!l.vencimento) return 'semData';
+    if (l.dias < 0) return 'vencidos';
+    return l.dias <= 7 ? 'semana' : 'depois';
+  }
+
+  function avisarEntrada(msg, erro) {
+    var el = $('andamento');
+    el.hidden = false;
+    el.className = 'andamento' + (erro ? ' erro' : '');
+    el.textContent = msg;
+  }
+
+  /* ---------- leitura ---------- */
+  function processar() {
+    var texto = $('texto').value;
+    fecharCamera();
+    if (!COMUM.limpo(texto)) {
+      avisarEntrada('Cole pelo menos uma linha digitável.', true);
+      return;
+    }
+    $('andamento').hidden = true;
+    leituras = BOL.lerLote(texto, hoje);
+    mostrar();
+  }
+
+  function lidos() {
+    return leituras.filter(function (l) { return !l.erro; });
+  }
+
+  function mostrar() {
+    var bons = lidos();
+    var rejeitadas = leituras.filter(function (l) { return l.erro; });
+
+    /* sem nenhum boleto não há resultado para mostrar: o motivo tem de aparecer ao lado do texto colado */
+    if (!bons.length) {
+      avisarEntrada(BOL.motivoSemBoleto(leituras) +
+        ' A linha digitável tem 47 dígitos (boleto bancário) ou 48 (água, luz, telefone e tributo); o código de barras tem 44.', true);
+      return;
+    }
+
+    var partes = ['<span><b>' + esc(plural(leituras.length, 'linha lida', 'linhas lidas')) + '</b></span>'];
+    partes.push('<span>' + esc(plural(bons.length, 'boleto', 'boletos')) + '</span>');
+    if (rejeitadas.length) {
+      partes.push('<span>' + esc(plural(rejeitadas.length, 'linha que não é boleto', 'linhas que não são boleto')) + '</span>');
+    }
+    var tortos = bons.filter(function (l) { return !l.valido; }).length;
+    if (tortos) partes.push('<span>' + esc(plural(tortos, 'com dígito que não bate', 'com dígito que não bate')) + '</span>');
+    $('lida').innerHTML = partes.join('');
+
+    $('cartao').hidden = bons.length !== 1;
+    $('lote').hidden = bons.length < 2;
+    $('ferramentas').hidden = false;
+
+    if (bons.length === 1) {
+      renderCartao(bons[0]);
+    } else {
+      renderResumo(bons);
+      renderTabela(bons);
+    }
+    renderDescartados(rejeitadas);
+    HT.mostrarResultado();
+  }
+
+  function curto(t) {
+    var s = COMUM.limpo(t);
+    return s.length > 56 ? s.slice(0, 56) + '…' : s;
+  }
+
+  function renderDescartados(lista) {
+    var caixa = $('descartados');
+    caixa.hidden = !lista.length;
+    if (!lista.length) return;
+    caixa.open = false;
+    $('descartados-titulo').textContent =
+      plural(lista.length, 'linha não virou boleto', 'linhas não viraram boleto') + ' — ver por quê';
+    $('descartados-lista').innerHTML = lista.map(function (l) {
+      return '<li><span>' + esc(curto(l.texto)) + '</span><span>' +
+        esc('Linha ' + l.numero + ': ' + l.erro) + '</span></li>';
+    }).join('');
+  }
+
+  /* ---------- um boleto: o cartão ---------- */
+  function blocoErros(l) {
+    if (!l.erros.length) return '';
+    return '<div class="erros"><b>Confira os dígitos antes de pagar.</b><ul>' +
+      l.erros.map(function (e) { return '<li>' + esc(e) + '</li>'; }).join('') + '</ul></div>';
+  }
+
+  function frase(l) {
+    if (l.dias < 0) return 'Venceu em ' + COMUM.formatarData(l.vencimento);
+    if (l.dias === 0) return 'Vence hoje';
+    return 'Vence em ' + COMUM.formatarData(l.vencimento);
+  }
+
+  function renderCartao(l) {
+    var quando = l.vencimento
+      ? '<span>' + esc(frase(l)) + '</span>' +
+        '<span class="tag ' + classeDias(l) + '">' + esc(BOL.situacao(l)) + '</span>'
+      : '<span class="tag">sem vencimento no código</span>';
+    var erros = blocoErros(l);
+    $('cartao').innerHTML = '<div class="cartao">' +
+      '<span class="banco">' + esc(titulo(l) || 'Boleto') + '</span>' +
+      '<h2>' + (l.valor == null ? '<span class="sem">sem valor no código de barras</span>' : esc(reais(l.valor))) + '</h2>' +
+      '<div class="quando">' + quando + '</div>' +
+      erros +
+      '<dl class="meta">' +
+      (l.banco.codigo ? '<dt>Banco</dt><dd>' + esc(l.banco.codigo + ' · ' + l.banco.nome) + '</dd>' : '') +
+      (l.segmento ? '<dt>Segmento</dt><dd>' + esc(l.segmento) + '</dd>' : '') +
+      '<dt>Linha digitável</dt><dd class="mono">' + esc(l.linha) + '</dd>' +
+      '<dt>Código de barras</dt><dd class="mono">' + esc(l.barras) + '</dd>' +
+      '</dl></div>';
+  }
+
+  /* ---------- lote: resumo, régua, KPIs e tabela ---------- */
+  var FAIXAS = [
+    ['vencidos', 'Vencidos'],
+    ['semana', 'Vencem em 7 dias'],
+    ['depois', 'Depois disso'],
+    ['semData', 'Sem vencimento']
+  ];
+
+  function totais(lista) {
+    var mapa = {};
+    FAIXAS.forEach(function (f) { mapa[f[0]] = { n: 0, valor: 0 }; });
+    lista.forEach(function (l) {
+      var f = mapa[faixaDe(l)];
+      f.n++;
+      f.valor += l.valor || 0;
+    });
+    return mapa;
+  }
+
+  function soma(lista) {
+    return lista.reduce(function (s, l) { return s + (l.valor || 0); }, 0);
+  }
+
+  function renderResumo(lista) {
+    var semValor = lista.filter(function (l) { return l.valor == null; }).length;
+    $('resumo').innerHTML = '<span class="valor">' + esc(reais(soma(lista))) + '</span> em ' +
+      esc(plural(lista.length, 'boleto', 'boletos')) + '.' +
+      (semValor ? '<small>' + esc(plural(semValor, 'boleto sem valor no código — o valor entra no caixa do banco',
+        'boletos sem valor no código — o valor entra no caixa do banco')) + '</small>' : '');
+
+    var mapa = totais(lista);
+    var total = soma(lista) || 1;
+    /* barra e legenda mostram a mesma faixa: com valor 0 a barra fica na largura mínima do kit, mas não some */
+    var comBoleto = FAIXAS.filter(function (f) { return mapa[f[0]].n > 0; });
+    $('regua-barra').innerHTML = comBoleto.map(function (f, i) {
+      return '<i data-faixa="' + esc(f[0]) + '" style="flex-basis:' + (mapa[f[0]].valor / total * 100).toFixed(2) +
+        '%;animation-delay:' + (i * 90) + 'ms" title="' + esc(f[1] + ': ' + reais(mapa[f[0]].valor)) + '"></i>';
+    }).join('');
+    $('regua-legenda').innerHTML = comBoleto.map(function (f) {
+      return '<div data-faixa="' + esc(f[0]) + '">' + esc(f[1]) + '<b>' + esc(reais(mapa[f[0]].valor)) +
+        '</b><small>' + esc(plural(mapa[f[0]].n, 'boleto', 'boletos')) + '</small></div>';
+    }).join('');
+  }
+
+  /* no lote a tabela é o resumo; barras e erros de DV moram no detalhe de cada boleto */
+  function detalhe(l) {
+    return '<div class="detalhe__grade">' +
+      '<div><h3>Do boleto</h3><dl class="meta">' +
+      (l.banco.codigo ? '<dt>Banco</dt><dd>' + esc(l.banco.codigo + ' · ' + l.banco.nome) + '</dd>' : '') +
+      (l.segmento ? '<dt>Segmento</dt><dd>' + esc(l.segmento) + '</dd>' : '') +
+      '<dt>Vencimento</dt><dd>' +
+      esc(l.vencimento ? COMUM.formatarData(l.vencimento) + ' · ' + BOL.situacao(l) : 'não vem no código') + '</dd>' +
+      '<dt>Valor</dt><dd>' + esc(l.valor == null ? 'não vem no código de barras' : reais(l.valor)) + '</dd>' +
+      '</dl>' + blocoErros(l) + '</div>' +
+      '<div><h3>Códigos</h3><dl class="meta">' +
+      '<dt>Linha digitável</dt><dd class="mono">' + esc(l.linha) + '</dd>' +
+      '<dt>Código de barras</dt><dd class="mono">' + esc(l.barras) + '</dd>' +
+      '</dl></div></div>';
+  }
+
+  function renderTabela(lista) {
+    var ordenada = lista.slice().sort(function (a, b) {
+      var x = a.vencimento || '9999-99-99', y = b.vencimento || '9999-99-99';
+      return x < y ? -1 : x > y ? 1 : 0;
+    });
+    $('linhas').innerHTML = ordenada.map(function (l, i) {
+      return '<tr class="linha' + (l.valido ? '' : ' torta') + '" tabindex="0" aria-expanded="false" style="--i:' + i + '">' +
+        '<td class="titulo">' + esc(titulo(l) || 'Boleto') +
+        '<span class="codigo">' + esc(l.linha) + '</span></td>' +
+        '<td class="venc"><span class="rot">Vence</span>' +
+        esc(l.vencimento ? COMUM.formatarData(l.vencimento) : '—') + '</td>' +
+        '<td><span class="rot">Situação</span><span class="tag ' + classeDias(l) + '">' +
+        esc(BOL.situacao(l)) + '</span></td>' +
+        '<td class="num"><span class="rot">Valor</span>' +
+        esc(l.valor == null ? '—' : COMUM.formatarValor(l.valor)) + '</td>' +
+        '</tr>' +
+        '<tr class="detalhe" hidden><td colspan="4">' + detalhe(l) + '</td></tr>';
+    }).join('');
+    $('rodape-nota').textContent = plural(ordenada.length, 'boleto', 'boletos');
+    $('rodape-total').textContent = COMUM.formatarValor(soma(ordenada));
+  }
+
+  function alternar(tr) {
+    var aberto = tr.getAttribute('aria-expanded') === 'true';
+    var det = tr.nextElementSibling;
+    tr.setAttribute('aria-expanded', aberto ? 'false' : 'true');
+    if (det && det.classList.contains('detalhe')) det.hidden = aberto;
+  }
+
+  $('linhas').addEventListener('click', function (e) {
+    var tr = e.target.closest('tr.linha');
+    if (tr) alternar(tr);
+  });
+
+  $('linhas').addEventListener('keydown', function (e) {
+    var tr = e.target.closest('tr.linha');
+    if (tr && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); alternar(tr); }
+  });
+
+  /* ---------- exportar ---------- */
+  $('baixar').addEventListener('click', function () {
+    HT.baixar('contas-a-pagar-' + hoje + '.csv', BOL.csvLote(lidos()));
+  });
+
+  $('copiar').addEventListener('click', function () {
+    HT.copiar(COMUM.tsv(BOL.linhasLote(lidos()))).then(function (ok) {
+      HT.avisar($('copiado'), ok ? 'Copiado — cole na planilha.' : 'Não deu para copiar — selecione a tabela e use Ctrl+C.', ok ? 2500 : 5000);
+    });
+  });
+
+  /* ---------- câmera ---------- */
+  var pararLeitura = null;
+  var SEM_CAMERA = 'Não deu para abrir a câmera: permissão negada ou câmera em uso.';
+
+  function avisarCamera(msg) { $('camera-aviso').textContent = msg; }
+
+  function fecharCamera() {
+    if (pararLeitura) pararLeitura();
+    pararLeitura = null;
+    var video = $('video');
+    if (video.srcObject) {
+      video.srcObject.getTracks().forEach(function (t) { t.stop(); });
+      video.srcObject = null;
+    }
+    $('camera-card').hidden = true;
+  }
+
+  /* o card da câmera some junto: o recado precisa aparecer onde o texto é colado */
+  function falharCamera() {
+    fecharCamera();
+    avisarEntrada(SEM_CAMERA, true);
+  }
+
+  function achou(bruto) {
+    var codigo = String(bruto || '').replace(/\D/g, '');
+    if (codigo.length !== 44 && codigo.length !== 47 && codigo.length !== 48) return false;
+    var campo = $('texto');
+    /* o mesmo código volta em cada quadro: não duplica, e a detecção segue à espera de outro boleto */
+    if (campo.value.indexOf(codigo) >= 0) return false;
+    campo.value = COMUM.limpo(campo.value) ? campo.value.replace(/\s+$/, '') + '\n' + codigo : codigo;
+    fecharCamera();
+    processar();
+    return true;
+  }
+
+  /* a API pode existir sem o formato do boleto: o construtor lança e o ZXing assume */
+  function criarDetector() {
+    if (!window.BarcodeDetector) return null;
+    try {
+      return new window.BarcodeDetector({ formats: ['itf'] });
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function comDetector(video, detector) {
+    var vivo = true;
+    function passo() {
+      if (!vivo) return;
+      detector.detect(video).then(function (achados) {
+        if (!vivo) return;
+        if (achados && achados.length && achou(achados[0].rawValue)) return;
+        setTimeout(passo, 220);
+      }, function () {
+        if (vivo) setTimeout(passo, 400);
+      });
+    }
+    passo();
+    return function () { vivo = false; };
+  }
+
+  function comZXing(video) {
+    return HT.carregarScript(ZXING).then(function () {
+      if (!window.ZXing || !window.ZXing.BrowserMultiFormatReader) throw new Error('leitor indisponível');
+      var dicas = new Map();
+      dicas.set(window.ZXing.DecodeHintType.POSSIBLE_FORMATS, [window.ZXing.BarcodeFormat.ITF]);
+      var leitor = new window.ZXing.BrowserMultiFormatReader(dicas);
+      var lendo = leitor.decodeFromConstraints({ video: { facingMode: 'environment' } }, video, function (achado) {
+        if (achado) achou(achado.getText());
+      });
+      /* o ZXing abre a câmera por conta própria: essa rejeição é permissão, não falta de leitor */
+      if (lendo && lendo.then) lendo.then(null, falharCamera);
+      return function () { leitor.reset(); };
+    });
+  }
+
+  function abrirCamera() {
+    $('camera-card').hidden = false;
+    avisarCamera('Aponte para o código de barras do boleto.');
+    var video = $('video');
+    var detector = criarDetector();
+
+    if (detector) {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        avisarCamera('Este navegador não abre a câmera aqui — cole a linha digitável.');
+        return;
+      }
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } }).then(function (fluxo) {
+        video.srcObject = fluxo;
+        video.play();
+        pararLeitura = comDetector(video, detector);
+      }, falharCamera);
+      return;
+    }
+
+    avisarCamera('Preparando o leitor…');
+    comZXing(video).then(function (parar) {
+      pararLeitura = parar;
+      avisarCamera('Aponte para o código de barras do boleto.');
+    }, function () {
+      avisarCamera('Este navegador não lê pela câmera; cole a linha digitável.');
+    });
+  }
+
+  /* ---------- ligações ---------- */
+  $('ler').addEventListener('click', processar);
+  $('camera').addEventListener('click', abrirCamera);
+  $('parar').addEventListener('click', fecharCamera);
+
+  $('texto').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); processar(); }
+  });
+
+  $('exemplo').addEventListener('click', function () {
+    $('texto').value = BOL.exemplo(hoje);
+    processar();
+  });
+
+  $('outra').addEventListener('click', function () {
+    fecharCamera();
+    $('andamento').hidden = true;
+    $('texto').value = '';
+    leituras = [];
+    $('cartao').hidden = true;
+    $('lote').hidden = true;
+    $('ferramentas').hidden = true;
+    HT.voltar();
+    $('cola').scrollIntoView({ block: 'center' });
+  });
+
+  HT.iniciar();
+})();
+</script>

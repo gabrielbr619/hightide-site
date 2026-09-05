@@ -1,0 +1,380 @@
+<meta charset="utf-8">
+<title>Testes — núcleo do extrator de NF-e</title>
+<style>
+  body { font: 14px/1.5 ui-monospace, monospace; background: #0B1124; color: #EAEFFF; padding: 2rem; }
+  h1 { font-size: 1.1rem; }
+  .ok { color: #4FD8E8; }
+  .falha { color: #FF6B5A; }
+  li { margin: .15rem 0; }
+  #placar { margin: 1rem 0; padding: .8rem 1rem; border: 1px solid #2E3D6E; border-radius: 8px; }
+</style>
+
+<h1>Núcleo do extrator de NF-e</h1>
+<div id="placar">rodando…</div>
+<ul id="lista"></ul>
+
+<script src="nucleo.js"></script>
+<script>
+(function () {
+  var casos = [], falhas = [];
+  var BOM = String.fromCharCode(0xFEFF);
+
+  function teste(nome, fn) { casos.push({ nome: nome, fn: fn }); }
+  function igual(a, b, o) {
+    if (a !== b) throw new Error((o || '') + ' esperado ' + JSON.stringify(b) + ', veio ' + JSON.stringify(a));
+  }
+  function verdade(v, o) { if (!v) throw new Error(o || 'esperava verdadeiro'); }
+
+  /* ---------------- fixtures ---------------- */
+
+  var COMPLETA = `<?xml version="1.0" encoding="UTF-8"?>
+<nfeProc versao="4.00" xmlns="http://www.portalfiscal.inf.br/nfe">
+  <NFe>
+    <infNFe versao="4.00" Id="NFe35260812345678000195550010000012341000012348">
+      <ide><cUF>35</cUF><natOp>VENDA DE MERCADORIA</natOp><mod>55</mod><serie>1</serie><nNF>1234</nNF><dhEmi>2026-08-12T09:31:00-03:00</dhEmi><tpNF>1</tpNF></ide>
+      <emit><CNPJ>12345678000195</CNPJ><xNome>METALURGICA BAIA SUL LTDA</xNome><xFant>BAIA SUL</xFant><enderEmit><xMun>Santos</xMun><UF>SP</UF></enderEmit></emit>
+      <dest><CNPJ>98765432000110</CNPJ><xNome>INDUSTRIA CLIENTE LTDA</xNome></dest>
+      <det nItem="1"><prod><xProd>CHAPA ACO 2MM</xProd><vProd>3200.00</vProd></prod></det>
+      <total><ICMSTot><vProd>3200.00</vProd><vDesc>0.00</vDesc><vNF>3200.00</vNF></ICMSTot></total>
+      <cobr><fat><nFat>1234</nFat><vLiq>3200.00</vLiq></fat>
+        <dup><nDup>002</nDup><dVenc>2026-10-11</dVenc><vDup>1600.00</vDup></dup>
+        <dup><nDup>001</nDup><dVenc>2026-09-11</dVenc><vDup>1600.00</vDup></dup>
+      </cobr>
+      <pag><detPag><tPag>15</tPag><vPag>3200.00</vPag></detPag></pag>
+    </infNFe>
+  </NFe>
+  <protNFe><infProt><chNFe>35260812345678000195550010000012341000012348</chNFe><cStat>100</cStat><xMotivo>Autorizado o uso da NF-e</xMotivo></infProt></protNFe>
+</nfeProc>`;
+
+  /* NFe "crua", sem nfeProc e sem protocolo — o que sai de muito emissor */
+  var SEM_PROTOCOLO = `<NFe xmlns="http://www.portalfiscal.inf.br/nfe">
+    <infNFe versao="4.00" Id="NFe35260899999999000191550010000005551000005559">
+      <ide><natOp>VENDA</natOp><mod>55</mod><serie>1</serie><nNF>555</nNF><dhEmi>2026-08-20T14:00:00-03:00</dhEmi><tpNF>1</tpNF></ide>
+      <emit><CNPJ>99999999000191</CNPJ><xNome>PAPELARIA MARE ALTA LTDA</xNome><enderEmit><UF>SP</UF></enderEmit></emit>
+      <dest><CNPJ>98765432000110</CNPJ><xNome>INDUSTRIA CLIENTE LTDA</xNome></dest>
+      <total><ICMSTot><vNF>412.90</vNF></ICMSTot></total>
+      <pag><detPag><tPag>01</tPag><vPag>412.90</vPag></detPag></pag>
+    </infNFe>
+  </NFe>`;
+
+  /* prefixo de namespace: getElementsByTagName cru falharia aqui */
+  var COM_PREFIXO = `<nfe:nfeProc xmlns:nfe="http://www.portalfiscal.inf.br/nfe" versao="4.00">
+    <nfe:NFe><nfe:infNFe versao="4.00" Id="NFe35260877777777000155550010000007771000007774">
+      <nfe:ide><nfe:mod>55</nfe:mod><nfe:serie>1</nfe:serie><nfe:nNF>777</nfe:nNF><nfe:dhEmi>2026-07-03T08:00:00-03:00</nfe:dhEmi></nfe:ide>
+      <nfe:emit><nfe:CNPJ>77777777000155</nfe:CNPJ><nfe:xNome>TRANSPORTES ENSEADA LTDA</nfe:xNome><nfe:enderEmit><nfe:UF>SP</nfe:UF></nfe:enderEmit></nfe:emit>
+      <nfe:total><nfe:ICMSTot><nfe:vNF>980.00</nfe:vNF></nfe:ICMSTot></nfe:total>
+    </nfe:infNFe></nfe:NFe>
+    <nfe:protNFe><nfe:infProt><nfe:cStat>100</nfe:cStat></nfe:infProt></nfe:protNFe>
+  </nfe:nfeProc>`;
+
+  /* produtor rural: emitente com CPF, layout antigo com dEmi */
+  var CPF_ANTIGA = `<nfeProc versao="3.10" xmlns="http://www.portalfiscal.inf.br/nfe">
+    <NFe><infNFe versao="3.10" Id="NFe35260866666666000144550010000003331000003337">
+      <ide><mod>55</mod><serie>1</serie><nNF>333</nNF><dEmi>2026-06-15</dEmi><indPag>1</indPag></ide>
+      <emit><CPF>12345678901</CPF><xNome>JOSE ANTONIO RIBEIRO</xNome><enderEmit><UF>MG</UF></enderEmit></emit>
+      <total><ICMSTot><vNF>1500.00</vNF></ICMSTot></total>
+    </infNFe></NFe>
+    <protNFe><infProt><cStat>100</cStat></infProt></protNFe>
+  </nfeProc>`;
+
+  var CANCELADA = `<nfeProc versao="4.00" xmlns="http://www.portalfiscal.inf.br/nfe">
+    <NFe><infNFe versao="4.00" Id="NFe35260855555555000133550010000009991000009993">
+      <ide><mod>55</mod><serie>1</serie><nNF>999</nNF><dhEmi>2026-08-05T10:00:00-03:00</dhEmi></ide>
+      <emit><CNPJ>55555555000133</CNPJ><xNome>DISTRIBUIDORA COSTA VERDE ME</xNome><enderEmit><UF>SP</UF></enderEmit></emit>
+      <total><ICMSTot><vNF>2100.00</vNF></ICMSTot></total>
+      <cobr><dup><nDup>001</nDup><dVenc>2026-09-05</dVenc><vDup>2100.00</vDup></dup></cobr>
+    </infNFe></NFe>
+    <protNFe><infProt><cStat>101</cStat><xMotivo>Cancelamento de NF-e homologado</xMotivo></infProt></protNFe>
+  </nfeProc>`;
+
+  var SEM_PAGAMENTO = `<NFe xmlns="http://www.portalfiscal.inf.br/nfe">
+    <infNFe versao="4.00" Id="NFe35260844444444000122550010000004441000004442">
+      <ide><mod>55</mod><serie>1</serie><nNF>444</nNF><dhEmi>2026-08-01T10:00:00-03:00</dhEmi></ide>
+      <emit><CNPJ>44444444000122</CNPJ><xNome>REMESSA LTDA</xNome><enderEmit><UF>SP</UF></enderEmit></emit>
+      <total><ICMSTot><vNF>0.00</vNF></ICMSTot></total>
+      <pag><detPag><tPag>90</tPag><vPag>0.00</vPag></detPag></pag>
+    </infNFe></NFe>`;
+
+  var EVENTO = `<procEventoNFe versao="1.00" xmlns="http://www.portalfiscal.inf.br/nfe">
+    <evento><infEvento><chNFe>35260855555555000133550010000009991000009993</chNFe>
+      <tpEvento>110111</tpEvento><xEvento>Cancelamento</xEvento></infEvento></evento>
+    <retEvento><infEvento><cStat>135</cStat></infEvento></retEvento>
+  </procEventoNFe>`;
+
+  var CTE = `<cteProc versao="3.00" xmlns="http://www.portalfiscal.inf.br/cte">
+    <CTe><infCte Id="CTe35260811111111000199570010000001111000001119"><ide><nCT>111</nCT></ide></infCte></CTe>
+  </cteProc>`;
+
+  /* duas notas no mesmo arquivo (lote enviNFe) */
+  var LOTE = `<enviNFe versao="4.00" xmlns="http://www.portalfiscal.inf.br/nfe">
+    <idLote>1</idLote>
+    <NFe><infNFe versao="4.00" Id="NFe35260822222222000111550010000002221000002225">
+      <ide><mod>55</mod><serie>1</serie><nNF>222</nNF><dhEmi>2026-08-02T10:00:00-03:00</dhEmi></ide>
+      <emit><CNPJ>22222222000111</CNPJ><xNome>ALFA LTDA</xNome><enderEmit><UF>SP</UF></enderEmit></emit>
+      <total><ICMSTot><vNF>100.00</vNF></ICMSTot></total>
+    </infNFe></NFe>
+    <NFe><infNFe versao="4.00" Id="NFe35260833333333000100550010000003331000003332">
+      <ide><mod>55</mod><serie>1</serie><nNF>223</nNF><dhEmi>2026-08-03T10:00:00-03:00</dhEmi></ide>
+      <emit><CNPJ>33333333000100</CNPJ><xNome>BETA LTDA</xNome><enderEmit><UF>SP</UF></enderEmit></emit>
+      <total><ICMSTot><vNF>200.00</vNF></ICMSTot></total>
+    </infNFe></NFe>
+  </enviNFe>`;
+
+  function primeiraNota(xml, nome) {
+    var r = NFE.lerArquivo(nome || 'x.xml', xml);
+    if (r.tipo !== 'notas') throw new Error('esperava tipo notas, veio ' + r.tipo + ' (' + r.motivo + ')');
+    return r.notas[0];
+  }
+
+  /* ---------------- leitura ---------------- */
+
+  teste('nota completa: identificação, emitente e valor', function () {
+    var n = primeiraNota(COMPLETA, 'nota1234.xml');
+    igual(n.chave, '35260812345678000195550010000012341000012348', 'chave');
+    igual(n.numero, '1234', 'numero');
+    igual(n.serie, '1', 'serie');
+    igual(n.emissao, '2026-08-12', 'emissao');
+    igual(n.fornecedor, 'METALURGICA BAIA SUL LTDA', 'fornecedor');
+    igual(n.docEmit, '12345678000195', 'docEmit');
+    igual(n.tipoDocEmit, 'CNPJ', 'tipoDocEmit');
+    igual(n.uf, 'SP', 'uf');
+    igual(n.valor, 3200, 'valor');
+    igual(n.destinatario, 'INDUSTRIA CLIENTE LTDA', 'destinatario');
+    igual(n.natureza, 'VENDA DE MERCADORIA', 'natureza');
+    igual(n.situacao, 'autorizada', 'situacao');
+    igual(n.arquivo, 'nota1234.xml', 'arquivo');
+  });
+
+  teste('duplicatas viram parcelas ordenadas por vencimento', function () {
+    var n = primeiraNota(COMPLETA);
+    igual(n.parcelas.length, 2, 'quantidade');
+    igual(n.parcelas[0].vencimento, '2026-09-11', 'primeira');
+    igual(n.parcelas[0].numero, '001', 'numero da primeira');
+    igual(n.parcelas[1].vencimento, '2026-10-11', 'segunda');
+    igual(n.parcelas[0].valor, 1600, 'valor da parcela');
+    igual(n.condicao, 'a prazo', 'condicao');
+    igual(NFE.vencimento(n), '2026-09-11', 'vencimento da nota');
+  });
+
+  teste('NFe sem nfeProc: lê e marca a falta do protocolo', function () {
+    var n = primeiraNota(SEM_PROTOCOLO);
+    igual(n.numero, '555', 'numero');
+    igual(n.valor, 412.9, 'valor');
+    igual(n.situacao, 'sem protocolo', 'situacao');
+  });
+
+  teste('namespace com prefixo continua sendo lido', function () {
+    var n = primeiraNota(COM_PREFIXO);
+    igual(n.fornecedor, 'TRANSPORTES ENSEADA LTDA', 'fornecedor');
+    igual(n.valor, 980, 'valor');
+    igual(n.emissao, '2026-07-03', 'emissao');
+  });
+
+  teste('emitente pessoa física e layout 3.10 com dEmi', function () {
+    var n = primeiraNota(CPF_ANTIGA);
+    igual(n.tipoDocEmit, 'CPF', 'tipoDocEmit');
+    igual(n.docEmit, '12345678901', 'docEmit');
+    igual(n.emissao, '2026-06-15', 'emissao');
+    igual(n.condicao, 'a prazo', 'indPag=1 sem duplicata ainda é a prazo');
+  });
+
+  teste('nota cancelada é lida e sinalizada', function () {
+    var n = primeiraNota(CANCELADA);
+    igual(n.situacao, 'cancelada', 'situacao');
+    igual(n.valor, 2100, 'valor');
+  });
+
+  teste('tPag 90 é remessa sem pagamento', function () {
+    var n = primeiraNota(SEM_PAGAMENTO);
+    igual(n.condicao, 'sem pagamento', 'condicao');
+    igual(NFE.vencimento(n), '', 'não tem vencimento');
+  });
+
+  teste('à vista quando há pagamento e nenhuma duplicata', function () {
+    var n = primeiraNota(SEM_PROTOCOLO);
+    igual(n.condicao, 'à vista', 'condicao');
+    igual(NFE.vencimento(n), '2026-08-20', 'à vista vence na emissão');
+  });
+
+  teste('lote enviNFe devolve as duas notas', function () {
+    var r = NFE.lerArquivo('lote.xml', LOTE);
+    igual(r.tipo, 'notas', 'tipo');
+    igual(r.notas.length, 2, 'quantidade');
+    igual(r.notas[1].fornecedor, 'BETA LTDA', 'segunda nota');
+  });
+
+  teste('evento de cancelamento não é nota', function () {
+    var r = NFE.lerArquivo('evento.xml', EVENTO);
+    igual(r.tipo, 'evento', 'tipo');
+    verdade(r.motivo.length > 0, 'tem motivo legível');
+  });
+
+  teste('CT-e é reconhecido e recusado', function () {
+    var r = NFE.lerArquivo('cte.xml', CTE);
+    igual(r.tipo, 'outro', 'tipo');
+    verdade(/CT-e/.test(r.motivo), 'motivo cita CT-e: ' + r.motivo);
+  });
+
+  teste('arquivo que não é XML devolve erro legível', function () {
+    var r = NFE.lerArquivo('foto.jpg', 'nada de xml aqui <<<');
+    igual(r.tipo, 'erro', 'tipo');
+    verdade(r.motivo.length > 0, 'tem motivo');
+  });
+
+  teste('XML válido sem NF-e dentro é recusado', function () {
+    var r = NFE.lerArquivo('config.xml', '<config><a>1</a></config>');
+    igual(r.tipo, 'outro', 'tipo');
+  });
+
+  teste('BOM no início não quebra a leitura', function () {
+    var n = primeiraNota(BOM + COMPLETA);
+    igual(n.numero, '1234', 'numero');
+  });
+
+  /* ---------------- juntar / deduplicar ---------------- */
+
+  teste('mesma chave em dois arquivos conta como repetida', function () {
+    var r = NFE.juntar([
+      NFE.lerArquivo('a.xml', COMPLETA),
+      NFE.lerArquivo('b.xml', COMPLETA),
+      NFE.lerArquivo('c.xml', SEM_PROTOCOLO)
+    ]);
+    igual(r.notas.length, 2, 'notas únicas');
+    igual(r.repetidas, 1, 'repetidas');
+  });
+
+  teste('versão com protocolo vence a versão sem protocolo', function () {
+    var crua = COMPLETA.replace(/<protNFe>[\s\S]*<\/protNFe>/, '');
+    var r = NFE.juntar([NFE.lerArquivo('crua.xml', crua), NFE.lerArquivo('proc.xml', COMPLETA)]);
+    igual(r.notas.length, 1, 'notas únicas');
+    igual(r.notas[0].situacao, 'autorizada', 'ficou com a autorizada');
+  });
+
+  teste('descartados guardam arquivo e motivo', function () {
+    var r = NFE.juntar([
+      NFE.lerArquivo('ev.xml', EVENTO),
+      NFE.lerArquivo('cte.xml', CTE),
+      NFE.lerArquivo('nota.xml', COMPLETA)
+    ]);
+    igual(r.notas.length, 1, 'notas');
+    igual(r.descartados.length, 2, 'descartados');
+    igual(r.descartados[0].arquivo, 'ev.xml', 'guarda o nome do arquivo');
+  });
+
+  /* ---------------- formatação ---------------- */
+
+  teste('CNPJ e CPF saem pontuados', function () {
+    igual(NFE.formatarDoc('12345678000195'), '12.345.678/0001-95', 'cnpj');
+    igual(NFE.formatarDoc('12345678901'), '123.456.789-01', 'cpf');
+    igual(NFE.formatarDoc(''), '—', 'vazio');
+  });
+
+  teste('data ISO vira dd/mm/aaaa sem escorregar de fuso', function () {
+    igual(NFE.formatarData('2026-01-01'), '01/01/2026', 'virada de ano');
+    igual(NFE.formatarData('2026-08-12T09:31:00-03:00'), '12/08/2026', 'com hora');
+    igual(NFE.formatarData(''), '', 'vazio');
+  });
+
+  teste('valor sai no padrão brasileiro', function () {
+    igual(NFE.formatarValor(3200), '3.200,00', 'milhar');
+    igual(NFE.formatarValor(412.9), '412,90', 'centavos');
+    igual(NFE.formatarValor(0), '0,00', 'zero');
+  });
+
+  /* ---------------- resumo ---------------- */
+
+  teste('resumo soma, conta fornecedores e separa por prazo', function () {
+    var notas = [
+      NFE.lerArquivo('a.xml', COMPLETA).notas[0],      // 3200, parcelas 11/09 e 11/10
+      NFE.lerArquivo('b.xml', SEM_PROTOCOLO).notas[0], // 412,90 à vista em 20/08
+      NFE.lerArquivo('c.xml', CANCELADA).notas[0]      // 2100 cancelada
+    ];
+    var r = NFE.resumo(notas, '2026-09-08');
+    igual(r.quantidade, 2, 'cancelada fora da contagem');
+    igual(r.total, 3612.9, 'total');
+    igual(r.fornecedores, 2, 'fornecedores distintos');
+    igual(r.vencidas.quantidade, 1, 'vencida: a de 20/08');
+    igual(r.vencidas.valor, 412.9, 'valor vencido');
+    igual(r.semana.quantidade, 1, 'na semana: 11/09');
+    igual(r.semana.valor, 1600, 'valor da semana');
+    igual(r.depois.valor, 1600, 'a segunda parcela sobra pro depois');
+  });
+
+  /* ---------------- CSV ---------------- */
+
+  teste('CSV das notas: BOM, ponto e vírgula e vírgula decimal', function () {
+    var csv = NFE.csvNotas([NFE.lerArquivo('a.xml', COMPLETA).notas[0]]);
+    igual(csv.charAt(0), BOM, 'começa com BOM para o Excel');
+    var linhas = csv.slice(1).split('\r\n');
+    verdade(linhas[0].indexOf('Fornecedor') >= 0, 'tem cabeçalho');
+    verdade(linhas[0].indexOf(';') >= 0, 'separador ponto e vírgula');
+    verdade(linhas[1].indexOf('3200,00') >= 0, 'valor com vírgula: ' + linhas[1]);
+    verdade(linhas[1].indexOf('12/08/2026') >= 0, 'data brasileira');
+    verdade(linhas[1].indexOf('11/09/2026') >= 0, 'primeiro vencimento');
+  });
+
+  teste('CSV escapa aspas e ponto e vírgula do nome', function () {
+    var n = NFE.lerArquivo('a.xml', COMPLETA).notas[0];
+    n.fornecedor = 'ACME; FILIAL "SUL"';
+    var linha = NFE.csvNotas([n]).split('\r\n')[1];
+    verdade(linha.indexOf('"ACME; FILIAL ""SUL"""') >= 0, 'campo escapado: ' + linha);
+  });
+
+  teste('CSV de parcelas tem uma linha por vencimento, em ordem', function () {
+    var csv = NFE.csvParcelas([
+      NFE.lerArquivo('a.xml', COMPLETA).notas[0],
+      NFE.lerArquivo('b.xml', SEM_PROTOCOLO).notas[0]
+    ]);
+    var linhas = csv.slice(1).trim().split('\r\n');
+    igual(linhas.length, 4, '1 cabeçalho + 3 parcelas');
+    verdade(linhas[1].indexOf('20/08/2026') === 0, 'ordenado por vencimento: ' + linhas[1]);
+    verdade(linhas[3].indexOf('11/10/2026') === 0, 'última é a mais distante: ' + linhas[3]);
+  });
+
+  teste('nota sem vencimento não entra no CSV de parcelas', function () {
+    var csv = NFE.csvParcelas([NFE.lerArquivo('s.xml', SEM_PAGAMENTO).notas[0]]);
+    igual(csv.slice(1).trim().split('\r\n').length, 1, 'só o cabeçalho');
+  });
+
+  /* ---------------- dados de exemplo ---------------- */
+
+  teste('os dados de exemplo são lidos pelo próprio parser', function () {
+    var arquivos = NFE.exemplos();
+    verdade(arquivos.length >= 5, 'tem material suficiente');
+    var r = NFE.juntar(arquivos.map(function (a) { return NFE.lerArquivo(a.nome, a.texto); }));
+    verdade(r.notas.length >= 4, 'saíram notas: ' + r.notas.length);
+    verdade(r.descartados.length >= 1, 'tem pelo menos um arquivo descartado, para mostrar o filtro');
+    verdade(r.notas.some(function (n) { return n.parcelas.length > 1; }), 'alguma nota parcelada');
+    verdade(r.notas.some(function (n) { return n.situacao === 'cancelada'; }), 'alguma cancelada');
+    r.notas.forEach(function (n) {
+      verdade(n.chave.length === 44, 'chave com 44 dígitos em ' + n.arquivo + ': ' + n.chave);
+      verdade(n.valor > 0, 'valor positivo em ' + n.arquivo);
+      verdade(!!n.fornecedor, 'fornecedor em ' + n.arquivo);
+    });
+  });
+
+  /* ---------------- execução ---------------- */
+
+  var lista = document.getElementById('lista');
+  casos.forEach(function (c) {
+    var li = document.createElement('li');
+    try {
+      c.fn();
+      li.className = 'ok';
+      li.textContent = 'ok   ' + c.nome;
+    } catch (e) {
+      li.className = 'falha';
+      li.textContent = 'FALHA ' + c.nome + ' — ' + e.message;
+      falhas.push(c.nome + ' — ' + e.message);
+    }
+    lista.appendChild(li);
+  });
+
+  var placar = falhas.length
+    ? falhas.length + ' de ' + casos.length + ' FALHARAM'
+    : casos.length + ' casos, todos verdes';
+  document.getElementById('placar').textContent = placar;
+  document.getElementById('placar').className = falhas.length ? 'falha' : 'ok';
+  window.__resultado = { total: casos.length, falhas: falhas };
+})();
+</script>

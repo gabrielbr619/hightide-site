@@ -1,0 +1,285 @@
+<meta charset="utf-8">
+<title>Testes — núcleo do caça-duplicados</title>
+<style>
+  body { font: 14px/1.5 ui-monospace, monospace; background: #0B1124; color: #EAEFFF; padding: 2rem; }
+  h1 { font-size: 1.1rem; }
+  .ok { color: #4FD8E8; }
+  .falha { color: #FF6B5A; }
+  li { margin: .15rem 0; }
+  #placar { margin: 1rem 0; padding: .8rem 1rem; border: 1px solid #2E3D6E; border-radius: 8px; }
+</style>
+
+<h1>Núcleo do caça-duplicados</h1>
+<div id="placar">rodando…</div>
+<ul id="lista"></ul>
+
+<script src="nucleo.js"></script>
+<script>
+(function () {
+  var casos = [], falhas = [];
+  var BOM = String.fromCharCode(0xFEFF);
+
+  function teste(nome, fn) { casos.push({ nome: nome, fn: fn }); }
+  function igual(a, b, o) {
+    if (a !== b) throw new Error((o || '') + ' esperado ' + JSON.stringify(b) + ', veio ' + JSON.stringify(a));
+  }
+  function verdade(v, o) { if (!v) throw new Error(o || 'esperava verdadeiro'); }
+  function mesmaLista(a, b, o) { igual(JSON.stringify(a), JSON.stringify(b), o); }
+
+  /* ---------------- CSV ---------------- */
+
+  teste('CSV com ponto e vírgula, aspas e CRLF', function () {
+    var t = DUP.lerCSV('Nome;CNPJ;Telefone\r\n"Padaria; Pão & Cia";12.345.678/0001-95;"(13) 3222-1234"\r\n"Diz ""oi""";;\r\n');
+    igual(t.separador, ';', 'separador');
+    mesmaLista(t.cabecalho, ['Nome', 'CNPJ', 'Telefone'], 'cabeçalho');
+    igual(t.linhas.length, 2, 'duas linhas de dados');
+    igual(t.linhas[0][0], 'Padaria; Pão & Cia', 'ponto e vírgula dentro de aspas');
+    igual(t.linhas[1][0], 'Diz "oi"', 'aspas duplicadas');
+    igual(t.linhas[1][2], '', 'campo vazio');
+  });
+
+  teste('CSV com vírgula, tabulação e BOM', function () {
+    var v = DUP.lerCSV(BOM + 'nome,email\nAna,ana@x.com\n');
+    igual(v.separador, ',', 'vírgula');
+    igual(v.cabecalho[0], 'nome', 'BOM fora do cabeçalho');
+    var tab = DUP.lerCSV('nome\temail\nAna\tana@x.com');
+    igual(tab.separador, '\t', 'tabulação');
+    igual(tab.linhas[0][1], 'ana@x.com');
+  });
+
+  teste('linha curta é completada e linha em branco é ignorada', function () {
+    var t = DUP.lerCSV('a;b;c\n1;2\n\n4;5;6\n   \n');
+    igual(t.linhas.length, 2, 'linhas');
+    mesmaLista(t.linhas[0], ['1', '2', ''], 'completada');
+  });
+
+  /* ---------------- normalização ---------------- */
+
+  teste('documento vira só dígitos válidos', function () {
+    igual(DUP.normalizarDoc('12.345.678/0001-95'), '12345678000195');
+    igual(DUP.normalizarDoc('123.456.789-01'), '12345678901');
+    igual(DUP.normalizarDoc('00000000000'), '', 'sequência repetida não identifica ninguém');
+    igual(DUP.normalizarDoc('12345'), '', 'tamanho errado');
+    igual(DUP.normalizarDoc(''), '');
+  });
+
+  teste('telefone perde máscara, +55 e zero à esquerda', function () {
+    igual(DUP.normalizarTelefone('(13) 99123-4567'), '13991234567');
+    igual(DUP.normalizarTelefone('+55 13 99123-4567'), '13991234567');
+    igual(DUP.normalizarTelefone('013 3222-1234'), '1332221234');
+    igual(DUP.normalizarTelefone('99123-4567'), '991234567', 'sem DDD fica como está');
+    igual(DUP.normalizarTelefone('123'), '', 'curto demais');
+  });
+
+  teste('mesmo telefone com e sem DDD casa', function () {
+    verdade(DUP.mesmoTelefone('13991234567', '991234567'), 'com e sem DDD');
+    verdade(DUP.mesmoTelefone('13991234567', '13991234567'), 'iguais');
+    verdade(!DUP.mesmoTelefone('13991234567', '11991234567'), 'DDD diferente não casa');
+    verdade(!DUP.mesmoTelefone('', ''), 'vazio nunca casa');
+  });
+
+  teste('nome perde acento, pontuação e sufixo de empresa', function () {
+    igual(DUP.normalizarNome('Refrigeração Maré Alta Ltda.'), 'REFRIGERACAO MARE ALTA');
+    igual(DUP.normalizarNome('MARÉ ALTA REFRIGERAÇÃO LTDA - ME'), 'MARE ALTA REFRIGERACAO');
+    igual(DUP.chaveNome('MARÉ ALTA REFRIGERAÇÃO LTDA'), DUP.chaveNome('Refrigeração Maré Alta Ltda.'), 'ordem das palavras não importa na chave');
+    igual(DUP.normalizarNome('José Antônio Ribeiro'), 'JOSE ANTONIO RIBEIRO');
+  });
+
+  teste('similaridade de nomes', function () {
+    igual(DUP.similaridade('JOSE ANTONIO RIBEIRO', 'JOSE ANTONIO RIBEIRO'), 1);
+    verdade(DUP.similaridade('JOSE ANTONIO RIBEIRO', 'JOSE ANTONI RIBEIRO') >= 0.9, 'uma letra a menos');
+    verdade(DUP.similaridade('CLINICA ODONTO ENSEADA', 'CLINICA ODONTO ENSEADA LTDA') >= 0.85, 'sufixo');
+    verdade(DUP.similaridade('JOSE ANTONIO RIBEIRO', 'MARIA SOUZA') < 0.5, 'nomes diferentes');
+    verdade(DUP.similaridade('', 'X') === 0, 'vazio');
+  });
+
+  /* ---------------- colunas ---------------- */
+
+  teste('detecta colunas pelo cabeçalho', function () {
+    var m = DUP.detectarColunas(['Código', 'Razão Social', 'Nome Fantasia', 'CNPJ/CPF', 'Telefone', 'E-mail', 'Cidade'], []);
+    igual(m.nome, 1, 'razão social vence fantasia');
+    igual(m.doc, 3);
+    igual(m.telefone, 4);
+    igual(m.email, 5);
+    igual(m.cidade, 6);
+  });
+
+  teste('detecta colunas pelo conteúdo quando o cabeçalho não ajuda', function () {
+    var linhas = [
+      ['1', 'Padaria Central', '12.345.678/0001-95', '(13) 3222-1234', 'x@y.com'],
+      ['2', 'Mercado Bom', '98.765.432/0001-10', '(13) 3333-0000', 'a@b.com'],
+      ['3', 'Oficina Sul', '111.222.333-44', '13 99999-1111', 'c@d.com']
+    ];
+    var m = DUP.detectarColunas(['A', 'B', 'C', 'D', 'E'], linhas);
+    igual(m.nome, 1);
+    igual(m.doc, 2);
+    igual(m.telefone, 3);
+    igual(m.email, 4);
+  });
+
+  /* ---------------- encontrar ---------------- */
+
+  function base() {
+    var erp = DUP.montarRegistros('erp.csv', ['Nome', 'CNPJ', 'Telefone', 'Email'], [
+      ['REFRIGERACAO MARE ALTA LTDA', '91.847.263/0001-58', '(13) 99123-4567', 'contato@marealta.com.br'],
+      ['Clinica Odonto Enseada', '92.735.184/0001-04', '', ''],
+      ['JOSE ANTONIO RIBEIRO', '482.739.165-02', '(35) 99811-2233', ''],
+      ['PADARIA CENTRAL LTDA', '11.222.333/0001-44', '(13) 3222-1111', ''],
+      ['MARIA SOUZA', '', '(13) 98888-7777', 'maria@x.com']
+    ], DUP.detectarColunas(['Nome', 'CNPJ', 'Telefone', 'Email'], []));
+    var planilha = DUP.montarRegistros('planilha.csv', ['Cliente', 'Documento', 'Celular', 'E-mail'], [
+      ['Maré Alta Refrigeração', '91847263000158', '', ''],
+      ['Jose Antoni Ribeiro', '', '35998112233', ''],
+      ['Clínica Odonto Enseada Ltda', '', '', ''],
+      ['Mercado Bom Preco', '55.666.777/0001-88', '', ''],
+      ['MARIA SOUZA', '', '', 'MARIA@X.COM']
+    ], DUP.detectarColunas(['Cliente', 'Documento', 'Celular', 'E-mail'], []));
+    return erp.concat(planilha);
+  }
+
+  teste('registros carregam origem, linha e campos normalizados', function () {
+    var r = base();
+    igual(r.length, 10);
+    igual(r[0].origem, 'erp.csv');
+    igual(r[0].linha, 2, 'linha da planilha, contando o cabeçalho');
+    igual(r[0].docNorm, '91847263000158');
+    igual(r[0].telefoneNorm, '13991234567');
+    igual(r[5].nome, 'Maré Alta Refrigeração', 'nome bruto preservado');
+  });
+
+  teste('mesmo CNPJ em dois arquivos vira grupo certo', function () {
+    var g = DUP.encontrar(base()).grupos;
+    var mare = g.filter(function (x) { return x.registros.some(function (r) { return r.docNorm === '91847263000158'; }); })[0];
+    verdade(mare, 'achou o grupo');
+    igual(mare.registros.length, 2);
+    igual(mare.certeza, 'certo');
+    verdade(mare.motivos.indexOf('documento') >= 0, 'motivo documento: ' + mare.motivos.join(','));
+    verdade(mare.motivos.indexOf('nome') >= 0, 'nome também bate (ordem trocada): ' + mare.motivos.join(','));
+  });
+
+  teste('telefone igual + nome com erro de digitação é certo', function () {
+    var g = DUP.encontrar(base()).grupos;
+    var jose = g.filter(function (x) { return x.registros.some(function (r) { return /RIBEIRO/i.test(r.nome); }); })[0];
+    verdade(jose, 'achou');
+    igual(jose.registros.length, 2);
+    igual(jose.certeza, 'certo');
+    verdade(jose.motivos.indexOf('telefone') >= 0, 'telefone');
+    verdade(jose.motivos.indexOf('nome parecido') >= 0, 'nome parecido: ' + jose.motivos.join(','));
+  });
+
+  teste('só nome parecido é provável; e-mail igual é certo', function () {
+    var g = DUP.encontrar(base()).grupos;
+    var clinica = g.filter(function (x) { return x.registros.some(function (r) { return /ODONTO/i.test(r.nome); }); })[0];
+    verdade(clinica, 'clínica achada');
+    igual(clinica.certeza, 'provavel');
+    var maria = g.filter(function (x) { return x.registros.some(function (r) { return /MARIA/i.test(r.nome); }); })[0];
+    verdade(maria, 'maria achada');
+    igual(maria.certeza, 'certo');
+    verdade(maria.motivos.indexOf('e-mail') >= 0, 'motivo e-mail (comparado sem caixa)');
+  });
+
+  teste('quem não tem par fica de fora e o resumo fecha a conta', function () {
+    var res = DUP.encontrar(base());
+    igual(res.grupos.length, 4, 'quatro grupos');
+    verdade(!res.grupos.some(function (x) { return x.registros.some(function (r) { return /PADARIA|MERCADO/i.test(r.nome); }); }), 'padaria e mercado não entram');
+    var s = DUP.resumo(base(), res);
+    igual(s.cadastros, 10);
+    igual(s.arquivos, 2);
+    igual(s.grupos, 4);
+    igual(s.envolvidos, 8);
+    igual(s.sobrando, 4, '10 cadastros viram 6: sobram 4');
+    igual(s.certos, 3);
+    igual(s.provaveis, 1);
+    igual(s.entreArquivos, 4, 'os quatro grupos cruzam os dois arquivos');
+  });
+
+  teste('grupo é transitivo: A~B por documento e B~C por e-mail viram um só', function () {
+    var mapa = DUP.detectarColunas(['Nome', 'CNPJ', 'Telefone', 'Email'], []);
+    var r = DUP.montarRegistros('x.csv', ['Nome', 'CNPJ', 'Telefone', 'Email'], [
+      ['ALFA COMERCIO', '11.111.111/0001-11', '', ''],
+      ['BETA SERVICOS', '11111111000111', '', 'b@b.com'],
+      ['GAMA LTDA', '', '', 'B@B.COM']
+    ], mapa);
+    var g = DUP.encontrar(r).grupos;
+    igual(g.length, 1);
+    igual(g[0].registros.length, 3);
+  });
+
+  teste('não cria falso positivo entre cadastros diferentes com campos vazios', function () {
+    var mapa = DUP.detectarColunas(['Nome', 'CNPJ', 'Telefone', 'Email'], []);
+    var r = DUP.montarRegistros('x.csv', ['Nome', 'CNPJ', 'Telefone', 'Email'], [
+      ['LOJA UM', '', '', ''],
+      ['LOJA DOIS', '', '', ''],
+      ['LOJA TRES', '', '', '']
+    ], mapa);
+    igual(DUP.encontrar(r).grupos.length, 0);
+  });
+
+  /* ---------------- exportação ---------------- */
+
+  teste('CSV de repetidos: uma linha por cadastro, com grupo e motivo', function () {
+    var r = base(), res = DUP.encontrar(r);
+    var csv = DUP.csvRepetidos(res.grupos);
+    igual(csv.charAt(0), BOM, 'BOM');
+    var linhas = csv.slice(1).trim().split('\r\n');
+    igual(linhas.length, 1 + 8, 'cabeçalho + 8 cadastros envolvidos');
+    verdade(linhas[0].indexOf('Grupo;') === 0, 'começa com Grupo: ' + linhas[0]);
+    verdade(linhas[1].indexOf('erp.csv') >= 0 || linhas[1].indexOf('planilha.csv') >= 0, 'traz a origem');
+  });
+
+  teste('cadastro unificado: um por grupo, o mais completo, mais quem não repetiu', function () {
+    var r = base(), res = DUP.encontrar(r);
+    var csv = DUP.csvUnificado(r, res.grupos);
+    var linhas = csv.slice(1).trim().split('\r\n');
+    igual(linhas.length, 1 + 6, 'cabeçalho + 6 clientes');
+    var mare = linhas.filter(function (l) { return /MARE ALTA/i.test(l); })[0];
+    verdade(mare.indexOf('contato@marealta.com.br') >= 0, 'ficou o registro mais completo: ' + mare);
+    verdade(mare.indexOf('2 cadastros') >= 0, 'diz de quantos veio: ' + mare);
+    verdade(linhas.some(function (l) { return /PADARIA CENTRAL/.test(l); }), 'quem não repetiu continua na lista');
+  });
+
+  /* ---------------- exemplo ---------------- */
+
+  teste('dados de exemplo: dois arquivos, grupos certos e prováveis, cruzando sistemas', function () {
+    var arquivos = DUP.exemplo();
+    igual(arquivos.length, 2, 'dois arquivos');
+    var registros = [];
+    arquivos.forEach(function (a) {
+      var t = DUP.lerCSV(a.texto);
+      var mapa = DUP.detectarColunas(t.cabecalho, t.linhas);
+      verdade(mapa.nome >= 0 && mapa.doc >= 0, 'colunas detectadas em ' + a.nome);
+      registros = registros.concat(DUP.montarRegistros(a.nome, t.cabecalho, t.linhas, mapa));
+    });
+    var res = DUP.encontrar(registros);
+    var s = DUP.resumo(registros, res);
+    verdade(s.grupos >= 5, 'grupos: ' + s.grupos);
+    verdade(s.certos >= 1 && s.provaveis >= 1, 'tem certo e provável');
+    verdade(s.entreArquivos >= 1, 'algum grupo cruza os dois sistemas');
+    verdade(s.cadastros - s.envolvidos >= 3, 'sobram cadastros únicos para a lista não ser só duplicata');
+  });
+
+  /* ---------------- execução ---------------- */
+
+  var lista = document.getElementById('lista');
+  casos.forEach(function (c) {
+    var li = document.createElement('li');
+    try {
+      c.fn();
+      li.className = 'ok';
+      li.textContent = 'ok   ' + c.nome;
+    } catch (e) {
+      li.className = 'falha';
+      li.textContent = 'FALHA ' + c.nome + ' — ' + e.message;
+      falhas.push(c.nome + ' — ' + e.message);
+    }
+    lista.appendChild(li);
+  });
+
+  var placar = falhas.length
+    ? falhas.length + ' de ' + casos.length + ' FALHARAM'
+    : casos.length + ' casos, todos verdes';
+  document.getElementById('placar').textContent = placar;
+  document.getElementById('placar').className = falhas.length ? 'falha' : 'ok';
+  window.__resultado = { total: casos.length, falhas: falhas };
+})();
+</script>

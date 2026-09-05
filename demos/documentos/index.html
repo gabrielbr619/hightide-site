@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<title>Gerador de documentos — High Tide</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Preencha os dados do serviço uma vez e baixe proposta, ordem de serviço e recibo em PDF, com numeração e valor por extenso. Tudo montado no seu navegador.">
+<link rel="icon" type="image/png" href="../../telas/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,600..800&family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+
+<style>
+  /* ================= tokens — os mesmos da landing ================= */
+  :root {
+    --fundo:      #070B18;
+    --fundo-2:    #0B1124;
+    --superficie: #101A38;
+    --tinta:      #EAEFFF;
+    --tinta-mid:  #99A5D0;
+    --linha:      #1E2A52;
+    --linha-forte:#2E3D6E;
+    --coral:      #FF6B5A;
+    --coral-luz:  #FF8E7F;
+    --azul:       #7C8CFF;
+    --azul-fundo: #2B3A8F;
+    --ciano:      #4FD8E8;
+    --sol:        #FFB443;
+    --grade: radial-gradient(circle, color-mix(in srgb, var(--azul) 26%, transparent) .9px, transparent .9px);
+    --sombra-folha: 0 40px 70px -35px rgb(0 0 0 / .8), 0 0 0 1px rgb(255 255 255 / .06);
+    color-scheme: dark;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --fundo:      #EDF1FD;
+      --fundo-2:    #DEE6FB;
+      --superficie: #FFFFFF;
+      --tinta:      #050B22;
+      --tinta-mid:  #3E4B7E;
+      --linha:      #C6D2F0;
+      --linha-forte:#9EAFE0;
+      --coral:      #D93A22;
+      --coral-luz:  #EE5236;
+      --azul:       #2C3DB4;
+      --azul-fundo: #B2BFF3;
+      --ciano:      #04697F;
+      --sol:        #B36A00;
+      --sombra-folha: 0 30px 60px -30px rgb(20 30 80 / .35), 0 0 0 1px rgb(20 30 80 / .08);
+      color-scheme: light;
+    }
+  }
+  :root[data-theme="light"] {
+    --fundo:      #EDF1FD;
+    --fundo-2:    #DEE6FB;
+    --superficie: #FFFFFF;
+    --tinta:      #050B22;
+    --tinta-mid:  #3E4B7E;
+    --linha:      #C6D2F0;
+    --linha-forte:#9EAFE0;
+    --coral:      #D93A22;
+    --coral-luz:  #EE5236;
+    --azul:       #2C3DB4;
+    --azul-fundo: #B2BFF3;
+    --ciano:      #04697F;
+    --sol:        #B36A00;
+    --sombra-folha: 0 30px 60px -30px rgb(20 30 80 / .35), 0 0 0 1px rgb(20 30 80 / .08);
+    color-scheme: light;
+  }
+
+  /* ================= base ================= */
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh;
+    background: var(--grade) 0 0 / 30px 30px, var(--fundo);
+    color: var(--tinta);
+    font-family: Archivo, ui-sans-serif, system-ui, sans-serif;
+    font-size: 17px; line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+  h1, h2 {
+    font-family: "Bricolage Grotesque", Archivo, ui-sans-serif, sans-serif;
+    font-weight: 800; letter-spacing: -0.035em; line-height: 1.03; margin: 0; text-wrap: balance;
+  }
+  p { margin: 0; max-width: 68ch; }
+  a { color: inherit; }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  /* fieldset nasce com min-width: min-content e input com largura intrínseca: os dois impedem a coluna de encolher no celular */
+  fieldset, input, select, textarea { min-width: 0; }
+  :focus-visible { outline: 2px solid var(--ciano); outline-offset: 3px; border-radius: 3px; }
+  .env { width: min(1240px, 100% - 2.5rem); margin-inline: auto; }
+  [hidden] { display: none !important; }
+
+  /* ================= topo ================= */
+  body > header {
+    position: sticky; top: 0; z-index: 10; padding: .7rem 0;
+    background: color-mix(in srgb, var(--fundo) 92%, transparent);
+    backdrop-filter: blur(8px); border-bottom: 1px solid var(--linha);
+  }
+  .barra { display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; }
+  .marca { display: flex; align-items: center; gap: .9rem; text-decoration: none; }
+  .marca img { height: 40px; width: auto; }
+  .marca img.so-escuro { display: block; }
+  .marca img.so-claro  { display: none; }
+  :root[data-theme="light"] .marca img.so-claro  { display: block; }
+  :root[data-theme="light"] .marca img.so-escuro { display: none; }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) .marca img.so-claro  { display: block; }
+    :root:not([data-theme="dark"]) .marca img.so-escuro { display: none; }
+  }
+  .marca small { padding-left: .9rem; border-left: 1px solid var(--linha-forte); font-size: .88rem; color: var(--tinta-mid); }
+  nav { display: flex; align-items: center; gap: 1.2rem; }
+  nav a.item { text-decoration: none; color: var(--tinta-mid); font-size: .93rem; font-weight: 500; }
+  nav a.item:hover { color: var(--tinta); }
+
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: .5rem;
+    padding: .7rem 1.3rem; border: 0; border-radius: 999px; cursor: pointer;
+    background: var(--coral); color: #FFF4F1;
+    font: 600 .95rem/1 Archivo, sans-serif; text-decoration: none;
+    box-shadow: 0 8px 30px -12px var(--coral);
+    transition: transform .2s cubic-bezier(.2,.7,.3,1), box-shadow .2s, opacity .2s;
+  }
+  .btn:hover { transform: translateY(-2px); box-shadow: 0 14px 40px -14px var(--coral); }
+  .btn.discreto { background: transparent; color: var(--tinta); border: 1px solid var(--linha-forte); box-shadow: none; }
+  .btn.discreto:hover { border-color: var(--ciano); color: var(--ciano); }
+  .btn:disabled { opacity: .45; cursor: not-allowed; transform: none; box-shadow: none; }
+
+  .tema { width: 36px; height: 36px; display: grid; place-items: center; background: transparent; border: 1px solid var(--linha-forte); border-radius: 999px; color: var(--tinta-mid); cursor: pointer; transition: color .25s, border-color .25s; }
+  .tema:hover { color: var(--ciano); border-color: var(--ciano); }
+  .tema svg { width: 16px; height: 16px; }
+  .tema .lua { display: block; }
+  .tema .sol { display: none; }
+  :root[data-theme="light"] .tema .lua { display: none; }
+  :root[data-theme="light"] .tema .sol { display: block; }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) .tema .lua { display: none; }
+    :root:not([data-theme="dark"]) .tema .sol { display: block; }
+  }
+
+  /* ================= abertura ================= */
+  .abertura { padding: 4rem 0 2.6rem; display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); grid-template-areas: "texto aside"; gap: 2.5rem 4rem; align-items: center; }
+  .abertura__grade { display: contents; }
+  .abertura__texto { grid-area: texto; }
+  .entra-sai { grid-area: aside; }
+
+  /* entra → sai: a mesma leitura do fluxo da landing, em miniatura */
+  .entra-sai { display: grid; gap: .5rem; }
+  .entra-sai > div { padding: 1.1rem 1.3rem 1.2rem; border: 1px solid var(--linha); border-radius: 14px; background: color-mix(in srgb, var(--superficie) 40%, transparent); }
+  .entra-sai .rotulo { display: block; margin-bottom: .5rem; font: 600 .7rem/1.3 "JetBrains Mono", monospace; letter-spacing: .07em; text-transform: uppercase; }
+  .entra-sai .entra .rotulo { color: var(--ciano); }
+  .entra-sai .sai .rotulo { color: var(--sol); }
+  .entra-sai ul { margin: 0; padding: 0; list-style: none; display: grid; gap: .3rem; font-size: .93rem; color: var(--tinta-mid); }
+  .entra-sai li { position: relative; padding-left: 1.05rem; }
+  .entra-sai li::before { content: ""; position: absolute; left: 0; top: .62em; width: 6px; height: 6px; border-radius: 50%; background: var(--ciano); }
+  .entra-sai .sai li::before { background: var(--sol); }
+  .entra-sai .sai li { color: var(--tinta); }
+  .entra-sai .seta { justify-self: center; display: grid; place-items: center; width: 26px; height: 26px; margin: -.2rem 0; color: var(--coral); }
+  .entra-sai .seta svg { width: 16px; height: 16px; }
+
+  /* fecho em duas colunas: a chamada e as outras amostras */
+  .fecho__grade { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: 2.5rem 4rem; align-items: center; }
+  .outras { display: grid; gap: .6rem; }
+  .outras .rotulo { font: 600 .7rem/1.3 "JetBrains Mono", monospace; letter-spacing: .07em; text-transform: uppercase; color: var(--tinta-mid); margin-bottom: .2rem; }
+  .outras a { display: block; padding: 1.1rem 1.3rem; border: 1px solid var(--linha); border-radius: 14px; background: color-mix(in srgb, var(--superficie) 40%, transparent); text-decoration: none; transition: border-color .25s, transform .25s; }
+  .outras a:hover { border-color: var(--ciano); transform: translateY(-2px); }
+  .outras a b { display: block; font-weight: 600; margin-bottom: .15rem; }
+  .outras a span { display: block; font-size: .92rem; color: var(--tinta-mid); }
+  .outras a i { display: block; margin-top: .5rem; font-style: normal; font-size: .84rem; font-weight: 600; color: var(--ciano); }
+  @media (max-width: 900px) {
+    .abertura { grid-template-columns: 1fr; grid-template-areas: "texto" "aside"; gap: 2rem; }
+    .fecho__grade { grid-template-columns: 1fr; gap: 2rem; }
+  }
+  .abertura h1 { font-size: clamp(2rem, 4.8vw, 3.6rem); max-width: 22ch; }
+  .lead { margin-top: 1.4rem; font-size: 1.1rem; color: var(--tinta-mid); max-width: 60ch; }
+  .local {
+    display: inline-flex; align-items: center; gap: .6rem; margin-top: 1.4rem;
+    padding: .5rem .95rem .5rem .7rem; border: 1px solid var(--linha-forte); border-radius: 999px;
+    font-size: .86rem; color: var(--tinta-mid); background: color-mix(in srgb, var(--superficie) 55%, transparent);
+  }
+  .local svg { width: 15px; height: 15px; color: var(--ciano); flex: none; }
+  .local b { color: var(--tinta); font-weight: 600; }
+
+  /* ================= trabalho: formulário + folha ================= */
+  .trabalho { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 2.5rem 3rem; align-items: start; padding-bottom: 2rem; }
+
+  .formulario { display: grid; gap: 1.6rem; }
+  .form-topo { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .8rem; }
+  .form-topo h2 { font-size: 1.35rem; letter-spacing: -0.02em; }
+  .grupo { padding: 1.3rem 1.3rem 1.4rem; border: 1px solid var(--linha); border-radius: 14px; background: color-mix(in srgb, var(--superficie) 40%, transparent); }
+  .grupo > h3 { margin: 0 0 1rem; font: 600 .78rem/1.4 Archivo, sans-serif; letter-spacing: .05em; text-transform: uppercase; color: var(--ciano); display: flex; justify-content: space-between; gap: 1rem; }
+  .grupo > h3 small { font: 400 .78rem/1.4 Archivo, sans-serif; letter-spacing: 0; text-transform: none; color: var(--tinta-mid); }
+  .campos { display: grid; gap: .9rem; }
+  .campos.dupla { grid-template-columns: 1fr 1fr; }
+  .campo { display: grid; gap: .3rem; }
+  .campo.larga { grid-column: 1 / -1; }
+  .campo label { font-size: .84rem; color: var(--tinta-mid); }
+  .campo label b { color: var(--coral); font-weight: 600; }
+  .campo input, .campo textarea, .campo select {
+    width: 100%; padding: .62rem .8rem; border-radius: 9px;
+    border: 1px solid var(--linha-forte); background: color-mix(in srgb, var(--superficie) 60%, transparent);
+    color: var(--tinta); font-size: .95rem; line-height: 1.4;
+    transition: border-color .2s;
+  }
+  .campo textarea { resize: vertical; min-height: 4.2rem; }
+  .campo input:focus, .campo textarea:focus, .campo select:focus { outline: none; border-color: var(--coral); }
+  .campo input::placeholder, .campo textarea::placeholder { color: color-mix(in srgb, var(--tinta-mid) 60%, transparent); }
+
+  .itens { display: grid; }
+  .linha-item { display: grid; grid-template-columns: 1fr 1fr 1.5fr 1.5fr 2rem; gap: .45rem .5rem; align-items: end; padding: .7rem 0; border-top: 1px solid var(--linha); }
+  .linha-item:first-child { border-top: 0; padding-top: 0; }
+  .linha-item .desc { grid-column: 1 / -1; }
+  .linha-item input { width: 100%; padding: .55rem .65rem; border-radius: 8px; border: 1px solid var(--linha-forte); background: color-mix(in srgb, var(--superficie) 60%, transparent); color: var(--tinta); font-size: .92rem; }
+  .linha-item input:focus { outline: none; border-color: var(--coral); }
+  .linha-item input.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .linha-item label, .linha-item .sub-caixa { display: grid; gap: .15rem; min-width: 0; }
+  .linha-item small { font-size: .68rem; color: var(--tinta-mid); white-space: nowrap; }
+  .linha-item .sub-caixa { text-align: right; }
+  .linha-item .sub { display: block; padding: .55rem 0; font-size: .92rem; font-variant-numeric: tabular-nums; color: var(--tinta-mid); white-space: nowrap; min-height: 2.5rem; }
+  .linha-item .tira { width: 2rem; height: 2.5rem; display: grid; place-items: center; background: transparent; border: 0; border-radius: 6px; color: var(--tinta-mid); cursor: pointer; font-size: 1.2rem; line-height: 1; }
+  .linha-item .tira:hover { color: var(--coral); background: color-mix(in srgb, var(--coral) 12%, transparent); }
+  .itens-rodape { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .8rem; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--linha); }
+  .itens-rodape .campo { grid-template-columns: auto 8rem; align-items: center; gap: .6rem; }
+  .btn.mini { padding: .5rem .95rem; font-size: .85rem; }
+
+  /* a folha */
+  .lado { position: sticky; top: 5rem; display: grid; gap: .9rem; }
+  .abas { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; }
+  .abas [role="tab"] {
+    padding: .55rem 1rem; border: 1px solid var(--linha-forte); border-radius: 999px;
+    background: transparent; color: var(--tinta-mid); font-size: .9rem; font-weight: 500; cursor: pointer;
+    transition: color .2s, border-color .2s, background .2s;
+  }
+  .abas [role="tab"]:hover { color: var(--tinta); border-color: var(--ciano); }
+  .abas [role="tab"][aria-selected="true"] { background: var(--tinta); color: var(--fundo); border-color: var(--tinta); }
+  .abas .acoes { margin-left: auto; display: flex; align-items: center; gap: .6rem; }
+  .abas .acoes .btn { padding: .6rem 1.15rem; font-size: .9rem; }
+  .aviso { font-size: .84rem; color: var(--tinta-mid); min-height: 1.3em; }
+  .aviso.erro { color: var(--sol); }
+  .aviso.ok { color: var(--ciano); }
+
+  .folha-rolagem { max-height: calc(100vh - 11rem); overflow: auto; padding: .5rem .2rem 1.5rem; margin: -.5rem -.2rem 0; }
+  .folha {
+    background: #FFFFFF; color: #141828; border-radius: 6px; box-shadow: var(--sombra-folha);
+    padding: clamp(1.4rem, 3.4vw, 2.6rem) clamp(1.2rem, 3.4vw, 2.4rem);
+    min-height: 36rem; font-size: .86rem; line-height: 1.5;
+    transition: opacity .2s;
+  }
+  .folha.vazia { display: grid; place-items: center; color: #6E768C; text-align: center; }
+
+  /* o documento — mesmas cores do PDF, não segue o tema */
+  .doc__cabeca { display: flex; justify-content: space-between; gap: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid #C8CEE0; }
+  .doc__emissor strong { display: block; font-size: 1rem; }
+  .doc__emissor span, .doc__cliente > span { display: block; color: #6E768C; font-size: .8rem; }
+  .doc__titulo { text-align: right; flex: none; }
+  .doc__titulo h2 { font: 800 1.55rem/1.05 Archivo, sans-serif; letter-spacing: -.03em; color: #070B18; }
+  .doc__titulo span { display: block; margin-top: .2rem; color: #6E768C; font-size: .8rem; }
+  .doc__rotulo { display: block; font: 600 .66rem/1.4 Archivo, sans-serif; letter-spacing: .07em; text-transform: uppercase; color: #6E768C; margin-bottom: .3rem; }
+  .doc__cliente { margin: 1.3rem 0; }
+  .doc__cliente strong { display: block; font-size: .96rem; }
+  .doc__texto { margin: 1rem 0; }
+  .doc__texto p { max-width: none; margin: 0 0 .55rem; }
+  .doc__tabela { width: 100%; border-collapse: collapse; margin: .9rem 0 .5rem; font-size: .82rem; color: #141828; }
+  .doc__tabela th { background: #070B18; color: #FFFFFF; text-align: left; padding: .45rem .55rem; font-weight: 600; }
+  .doc__tabela td { padding: .45rem .55rem; border: 1px solid #C8CEE0; vertical-align: top; }
+  .doc__tabela .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .doc__totais { display: grid; justify-content: end; gap: .2rem; margin-bottom: 1.2rem; }
+  .doc__totais div { display: grid; grid-template-columns: auto 8rem; gap: 1rem; text-align: right; color: #6E768C; font-size: .85rem; font-variant-numeric: tabular-nums; }
+  .doc__totais .total { color: #070B18; font-weight: 700; font-size: 1.05rem; margin-top: .15rem; }
+  .doc__campos { display: grid; gap: .55rem; margin: 1.2rem 0; }
+  .doc__campos div { display: grid; grid-template-columns: 9.5rem 1fr; gap: 1rem; }
+  .doc__campos dt { font: 600 .66rem/1.6 Archivo, sans-serif; letter-spacing: .07em; text-transform: uppercase; color: #6E768C; }
+  .doc__campos dd { margin: 0; }
+  .doc__assinaturas { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 2.5rem; margin-top: 3.4rem; text-align: center; }
+  .doc__assinaturas i { display: block; border-top: 1px solid #141828; margin-bottom: .45rem; }
+  .doc__assinaturas strong { display: block; font-size: .84rem; }
+  .doc__assinaturas span { display: block; color: #6E768C; font-size: .75rem; }
+
+  /* barra fixa do celular: número, total e as duas ações sem rolar até a folha */
+  .formulario, .lado { scroll-margin-top: 4.5rem; }
+  .acao-movel {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; display: none;
+    grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: .6rem;
+    padding: .7rem 1rem calc(.7rem + env(safe-area-inset-bottom));
+    background: color-mix(in srgb, var(--fundo) 94%, transparent); backdrop-filter: blur(8px);
+    border-top: 1px solid var(--linha-forte);
+  }
+  .acao-movel__info { display: grid; min-width: 0; font-size: .78rem; line-height: 1.3; color: var(--tinta-mid); }
+  .acao-movel__info b { color: var(--tinta); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .acao-movel .btn { padding: .6rem .85rem; font-size: .84rem; white-space: nowrap; }
+
+  /* ================= fecho ================= */
+  .fecho { margin-top: 3.5rem; padding: 4rem 0 5rem; border-top: 1px solid var(--linha-forte); }
+  .fecho h2 { font-size: clamp(1.8rem, 4.4vw, 2.9rem); max-width: 20ch; }
+  .fecho p { margin-top: 1.3rem; font-size: 1.1rem; color: var(--tinta-mid); }
+  .fecho .btn { margin-top: 2.2rem; padding: 1rem 1.9rem; font-size: 1.02rem; }
+
+  footer { padding: 2rem 0 2.5rem; border-top: 1px solid var(--linha); font-size: .86rem; color: var(--tinta-mid); }
+  .rodape { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; }
+  .rodape .marca img { height: 30px; }
+
+  /* ================= responsivo ================= */
+  @media (max-width: 960px) {
+    .trabalho { grid-template-columns: minmax(0, 1fr); }
+    .lado { position: static; }
+    .folha-rolagem { max-height: none; overflow: visible; }
+    .acao-movel { display: grid; }
+    body { padding-bottom: 5.5rem; }
+    .abas .acoes { display: none; }
+  }
+  @media (max-width: 640px) {
+    body { font-size: 16px; }
+    .abertura { padding: 2.6rem 0 2rem; }
+    .abertura h1 { font-size: clamp(1.9rem, 8.6vw, 2.4rem); }
+    .lead { font-size: 1rem; }
+    .barra { gap: .8rem; }
+    .marca img { height: 32px; }
+    .marca small, nav .item { display: none; }
+    nav { gap: .6rem; }
+    nav .btn { padding: .55rem .9rem; font-size: .84rem; white-space: nowrap; }
+    .local { border-radius: 14px; align-items: flex-start; }
+    .local svg { margin-top: .25rem; }
+    .form-topo { align-items: flex-start; }
+    .form-topo h2 { font-size: 1.2rem; }
+    .campos.dupla { grid-template-columns: 1fr; }
+    .grupo { padding: 1.1rem 1rem 1.2rem; }
+    .grupo > h3 { flex-direction: column; gap: .15rem; }
+    .linha-item { grid-template-columns: 1fr 1fr 1.3fr 1.3fr 2rem; gap: .4rem .35rem; }
+    .linha-item small { font-size: .62rem; }
+    .abas { gap: .35rem; }
+    .abas [role="tab"] { padding: .5rem .8rem; font-size: .84rem; }
+    .folha { padding: 1.3rem 1rem 1.6rem; min-height: 0; font-size: .84rem; }
+    .doc__cabeca { flex-direction: column; gap: .8rem; }
+    .doc__titulo { text-align: left; }
+    .doc__titulo h2 { font-size: 1.35rem; }
+    /* a tabela vira cartão por item: nada de coluna espremida nem rolagem lateral */
+    .doc__tabela thead { display: none; }
+    .doc__tabela, .doc__tabela tbody { display: block; }
+    .doc__tabela tr { display: grid; grid-template-columns: 1fr 1fr 1.3fr; gap: .1rem .5rem; padding: .55rem 0; border-top: 1px solid #C8CEE0; }
+    .doc__tabela tr:last-child { border-bottom: 1px solid #C8CEE0; }
+    .doc__tabela td { display: block; border: 0; padding: 0; }
+    .doc__tabela td.desc { grid-column: 1 / -1; font-weight: 500; }
+    .doc__tabela td.num { text-align: left; white-space: normal; font-size: .78rem; color: #6E768C; }
+    .doc__tabela td.num::before { content: attr(data-rotulo) " "; font-weight: 400; color: #6E768C; }
+    .doc__tabela td.sub { text-align: right; color: #141828; font-weight: 600; }
+    .doc__totais div { grid-template-columns: auto 7rem; }
+    .doc__campos div { grid-template-columns: 1fr; gap: .1rem; }
+    .doc__assinaturas { grid-auto-flow: row; gap: 2rem; }
+    .fecho { margin-top: 2.5rem; padding: 3rem 0; }
+    .fecho h2 { font-size: 1.7rem; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+</style>
+
+<header>
+  <div class="env barra">
+    <a class="marca" href="https://hightide.site/" aria-label="High Tide, voltar ao site">
+      <img class="so-escuro" src="../../telas/logo-escura.webp" width="524" height="120" alt="High Tide">
+      <img class="so-claro" src="../../telas/logo-clara.webp" width="524" height="120" alt="" aria-hidden="true">
+      <small>Gerador de documentos</small>
+    </a>
+    <nav>
+      <a class="item" href="https://hightide.site/">Voltar ao site</a>
+      <button class="tema" id="tema" type="button" aria-label="Alternar tema claro e escuro">
+        <svg class="sol" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4"/></svg>
+        <svg class="lua" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z"/></svg>
+      </button>
+      <a class="btn" href="https://hightide.site/#orcamento">Pedir orçamento</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section class="abertura env">
+    <div class="abertura__grade">
+    <div class="abertura__texto">
+    <h1>Preencheu uma vez. Saem a proposta, a ordem de serviço e o recibo.</h1>
+    <p class="lead">Digite os dados do serviço uma única vez. Os três documentos ficam prontos ao lado, em PDF, com numeração, valor por extenso e assinaturas no lugar. Chega de abrir o Word e trocar nome por nome.</p>
+    <p class="local">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+      <span><b>Nada sai do seu navegador.</b> O documento é montado aqui, na sua máquina — nenhum dado é enviado a servidor nenhum, nem ao nosso.</span>
+    </p>
+    </div>
+    <aside class="entra-sai" aria-label="O que entra e o que sai">
+      <div class="entra"><span class="rotulo">Entra</span><ul>
+        <li>Sua empresa, o cliente e os itens — digitados uma vez só</li>
+        <li>Prazo, pagamento e validade</li>
+        <li>Sua empresa fica salva para a próxima</li>
+      </ul></div>
+      <span class="seta" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v16M6 14l6 6 6-6"/></svg></span>
+      <div class="sai"><span class="rotulo">Sai</span><ul>
+        <li>Proposta comercial numerada</li>
+        <li>Ordem de serviço pronta para assinar</li>
+        <li>Recibo com o valor por extenso</li>
+        <li>Os três em PDF, na hora</li>
+      </ul></div>
+    </aside>
+    </div>
+  </section>
+
+  <section class="trabalho env">
+    <form class="formulario" id="formulario" autocomplete="on" novalidate>
+      <div class="form-topo">
+        <h2>Dados do serviço</h2>
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+          <button class="btn discreto mini" type="button" id="exemplo">Preencher com exemplo</button>
+          <button class="btn discreto mini" type="button" id="limpar">Limpar</button>
+        </div>
+      </div>
+
+      <fieldset class="grupo" style="border:1px solid var(--linha);margin:0">
+        <h3>Sua empresa <small>fica salva neste navegador para a próxima vez</small></h3>
+        <div class="campos dupla">
+          <div class="campo larga"><label for="e-nome">Nome ou razão social <b>*</b></label><input id="e-nome" data-campo="emissor.nome" placeholder="Ex.: Refrigeração Maré Alta Ltda"></div>
+          <div class="campo"><label for="e-doc">CNPJ ou CPF</label><input id="e-doc" data-campo="emissor.doc" inputmode="numeric" placeholder="00.000.000/0001-00"></div>
+          <div class="campo"><label for="e-contato">Telefone e e-mail</label><input id="e-contato" data-campo="emissor.contato" placeholder="(13) 99999-0000 · voce@empresa.com.br"></div>
+          <div class="campo larga"><label for="e-endereco">Endereço</label><input id="e-endereco" data-campo="emissor.endereco" placeholder="Rua, número · Cidade/UF"></div>
+        </div>
+      </fieldset>
+
+      <fieldset class="grupo" style="border:1px solid var(--linha);margin:0">
+        <h3>Cliente</h3>
+        <div class="campos dupla">
+          <div class="campo larga"><label for="c-nome">Nome ou razão social <b>*</b></label><input id="c-nome" data-campo="cliente.nome" placeholder="Para quem é o documento"></div>
+          <div class="campo"><label for="c-doc">CNPJ ou CPF</label><input id="c-doc" data-campo="cliente.doc" inputmode="numeric"></div>
+          <div class="campo"><label for="c-endereco">Endereço</label><input id="c-endereco" data-campo="cliente.endereco"></div>
+        </div>
+      </fieldset>
+
+      <fieldset class="grupo" style="border:1px solid var(--linha);margin:0">
+        <h3>Itens e serviços <small>ao menos um com descrição e valor</small></h3>
+        <div class="itens" id="itens"></div>
+        <div class="itens-rodape">
+          <button class="btn discreto mini" type="button" id="mais-item">+ Adicionar item</button>
+          <div class="campo" style="display:grid"><label for="desconto">Desconto (R$)</label><input id="desconto" data-campo="desconto" class="num" inputmode="decimal" placeholder="0,00" style="text-align:right"></div>
+        </div>
+      </fieldset>
+
+      <fieldset class="grupo" style="border:1px solid var(--linha);margin:0">
+        <h3>Condições</h3>
+        <div class="campos dupla">
+          <div class="campo"><label for="data">Data de emissão</label><input id="data" data-campo="data" type="date"></div>
+          <div class="campo"><label for="cidade">Cidade</label><input id="cidade" data-campo="cidade" placeholder="Santos"></div>
+          <div class="campo"><label for="validade">Validade da proposta (dias)</label><input id="validade" data-campo="validade" type="number" min="0" step="1"></div>
+          <div class="campo"><label for="prazo">Prazo de entrega ou execução</label><input id="prazo" data-campo="prazo" placeholder="5 dias úteis após a aprovação"></div>
+          <div class="campo larga"><label for="pagamento">Forma de pagamento</label><input id="pagamento" data-campo="pagamento" placeholder="50% na aprovação e 50% na conclusão, via Pix"></div>
+          <div class="campo larga"><label for="observacoes">Observações</label><textarea id="observacoes" data-campo="observacoes" placeholder="Garantia, o que não está incluso, combinados"></textarea></div>
+        </div>
+      </fieldset>
+    </form>
+
+    <div class="lado">
+      <div class="abas" role="tablist" aria-label="Documento">
+        <button role="tab" type="button" data-tipo="proposta" aria-selected="true">Proposta</button>
+        <button role="tab" type="button" data-tipo="os" aria-selected="false">Ordem de serviço</button>
+        <button role="tab" type="button" data-tipo="recibo" aria-selected="false">Recibo</button>
+        <div class="acoes">
+          <button class="btn" type="button" id="baixar">Baixar PDF</button>
+        </div>
+      </div>
+      <div class="aviso" id="aviso" aria-live="polite"></div>
+      <div class="folha-rolagem">
+        <div class="folha" id="folha" aria-live="polite"></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="acao-movel" id="acao-movel">
+    <div class="acao-movel__info"><b id="am-numero"></b><span id="am-total"></span></div>
+    <button class="btn discreto" type="button" id="am-ver">Ver documento</button>
+    <button class="btn" type="button" id="am-baixar">Baixar PDF</button>
+  </div>
+
+  <section class="fecho env"><div class="fecho__grade">
+    <div>
+    <h2>Quer isso rodando toda semana, sozinho, com os seus dados?</h2>
+    <p>Este gerador é uma amostra. Na sua empresa, o documento nasce do orçamento aprovado, vai por e-mail ou WhatsApp sozinho, e o recibo sai quando o pagamento cai — sem ninguém abrir o Word.</p>
+    <a class="btn" href="https://hightide.site/#orcamento">Conversar com a High Tide</a>
+    </div>
+    <aside class="outras" aria-label="Outras amostras">
+      <span class="rotulo">Outras amostras para testar</span>
+      <a href="../duplicados/index.html"><b>Caça-duplicados</b><span>O mesmo cliente cadastrado duas vezes, em um sistema ou em dois. Ache todos.</span><i>Testar agora</i></a>
+      <a href="../conciliador/index.html"><b>Conciliador bancário</b><span>Extrato de um lado, lançamentos do outro: o que bate, o que falta e o que sobra.</span><i>Testar agora</i></a>
+      <a href="../painel/index.html"><b>Painel automático</b><span>Sobe a planilha, saem os números e os gráficos — sem montar nada.</span><i>Testar agora</i></a>
+    </aside>
+  </div></section>
+</main>
+
+<footer>
+  <div class="env rodape">
+    <span class="marca">
+      <img class="so-escuro" src="../../telas/logo-escura.webp" width="524" height="120" alt="High Tide">
+      <img class="so-claro" src="../../telas/logo-clara.webp" width="524" height="120" alt="" aria-hidden="true">
+    </span>
+    <span>© 2026 High Tide · hightide.site</span>
+  </div>
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="nucleo.js"></script>
+<script>
+(function () {
+  'use strict';
+  var raiz = document.documentElement;
+  var $ = function (id) { return document.getElementById(id); };
+
+  /* ---------- tema (mesma chave da landing) ---------- */
+  try {
+    var salvo = localStorage.getItem('ht-tema');
+    if (salvo) raiz.setAttribute('data-theme', salvo);
+  } catch (e) {}
+  $('tema').addEventListener('click', function () {
+    var claroAgora = raiz.getAttribute('data-theme')
+      ? raiz.getAttribute('data-theme') === 'light'
+      : matchMedia('(prefers-color-scheme: light)').matches;
+    var novo = claroAgora ? 'dark' : 'light';
+    raiz.setAttribute('data-theme', novo);
+    try { localStorage.setItem('ht-tema', novo); } catch (e) {}
+  });
+
+  /* ---------- estado ---------- */
+  function guardar(chave, valor) { try { localStorage.setItem(chave, JSON.stringify(valor)); } catch (e) {} }
+  function lembrar(chave) { try { return JSON.parse(localStorage.getItem(chave)); } catch (e) { return null; } }
+
+  function vazio() {
+    return {
+      emissor: { nome: '', doc: '', endereco: '', contato: '' },
+      cliente: { nome: '', doc: '', endereco: '', contato: '' },
+      itens: [{ descricao: '', qtd: 1, un: 'un', unitario: '' }],
+      desconto: '',
+      data: DOCS.hojeISO(),
+      cidade: '',
+      validade: 15,
+      prazo: '',
+      pagamento: '',
+      observacoes: ''
+    };
+  }
+  var estado = {
+    dados: vazio(),
+    tipo: 'proposta',
+    seq: lembrar('ht-doc-seq') || { proposta: 1, os: 1, recibo: 1 }
+  };
+  var emissorSalvo = lembrar('ht-doc-emissor');
+  if (emissorSalvo && emissorSalvo.nome) estado.dados.emissor = emissorSalvo;
+
+  /* ---------- formulário ---------- */
+  var campos = Array.prototype.slice.call(document.querySelectorAll('[data-campo]'));
+
+  function numeroBR(s) {
+    s = String(s == null ? '' : s).trim();
+    if (!s) return 0;
+    if (s.indexOf(',') >= 0) s = s.replace(/\./g, '').replace(',', '.');
+    var n = parseFloat(s);
+    return isFinite(n) ? n : 0;
+  }
+
+  function ler() {
+    var d = estado.dados;
+    campos.forEach(function (el) {
+      var caminho = el.dataset.campo.split('.');
+      var valor = el.value;
+      if (caminho.length === 2) d[caminho[0]][caminho[1]] = valor;
+      else d[caminho[0]] = valor;
+    });
+    d.itens = Array.prototype.slice.call(document.querySelectorAll('#itens .linha-item')).map(function (linha) {
+      return {
+        descricao: linha.querySelector('.desc').value,
+        qtd: numeroBR(linha.querySelector('.qtd').value),
+        un: linha.querySelector('.un').value,
+        unitario: numeroBR(linha.querySelector('.unit').value)
+      };
+    });
+    d.desconto = numeroBR(d.desconto);
+    d.validade = Number(d.validade) || 0;
+    return d;
+  }
+
+  function preencher(d) {
+    estado.dados = d;
+    campos.forEach(function (el) {
+      var caminho = el.dataset.campo.split('.');
+      var valor = caminho.length === 2 ? d[caminho[0]][caminho[1]] : d[caminho[0]];
+      if (el.dataset.campo === 'desconto') valor = valor ? DOCS.formatarValor(valor) : '';
+      el.value = valor == null ? '' : valor;
+    });
+    renderItens();
+    atualizar();
+  }
+
+  function renderItens() {
+    var caixa = $('itens');
+    caixa.innerHTML = '';
+    estado.dados.itens.forEach(function (it, i) {
+      var linha = document.createElement('div');
+      linha.className = 'linha-item';
+      linha.innerHTML =
+        '<input class="desc" placeholder="Descrição do item ou serviço" aria-label="Descrição do item ' + (i + 1) + '">' +
+        '<label><small>Qtd</small><input class="qtd num" inputmode="decimal" aria-label="Quantidade do item ' + (i + 1) + '"></label>' +
+        '<label><small>Un.</small><input class="un" aria-label="Unidade do item ' + (i + 1) + '" placeholder="un"></label>' +
+        '<label><small>Valor unit. (R$)</small><input class="unit num" inputmode="decimal" placeholder="0,00" aria-label="Valor unitário do item ' + (i + 1) + '"></label>' +
+        '<span class="sub-caixa"><small>Subtotal</small><span class="sub" aria-label="Subtotal do item ' + (i + 1) + '"></span></span>' +
+        '<button class="tira" type="button" aria-label="Remover item ' + (i + 1) + '" title="Remover">×</button>';
+      linha.querySelector('.desc').value = it.descricao || '';
+      linha.querySelector('.qtd').value = it.qtd == null || it.qtd === '' ? '' : DOCS.formatarQtd(it.qtd);
+      linha.querySelector('.un').value = it.un || 'un';
+      linha.querySelector('.unit').value = it.unitario === '' || it.unitario == null ? '' : DOCS.formatarValor(it.unitario);
+      linha.querySelector('.tira').addEventListener('click', function () {
+        ler();
+        estado.dados.itens.splice(i, 1);
+        if (!estado.dados.itens.length) estado.dados.itens.push({ descricao: '', qtd: 1, un: 'un', unitario: '' });
+        renderItens();
+        atualizar();
+      });
+      caixa.appendChild(linha);
+    });
+    atualizarSubtotais();
+  }
+
+  function atualizarSubtotais() {
+    document.querySelectorAll('#itens .linha-item').forEach(function (linha) {
+      var v = numeroBR(linha.querySelector('.qtd').value) * numeroBR(linha.querySelector('.unit').value);
+      linha.querySelector('.sub').textContent = v > 0 ? DOCS.formatarValor(v) : '';
+    });
+  }
+
+  $('mais-item').addEventListener('click', function () {
+    ler();
+    estado.dados.itens.push({ descricao: '', qtd: 1, un: 'un', unitario: '' });
+    renderItens();
+    atualizar();
+    var novos = document.querySelectorAll('#itens .desc');
+    novos[novos.length - 1].focus();
+  });
+
+  var temporizador;
+  $('formulario').addEventListener('input', function (e) {
+    atualizarSubtotais();
+    clearTimeout(temporizador);
+    temporizador = setTimeout(function () {
+      ler();
+      if (e.target.dataset.campo && e.target.dataset.campo.indexOf('emissor.') === 0) guardar('ht-doc-emissor', estado.dados.emissor);
+      atualizar();
+    }, 90);
+  });
+  $('formulario').addEventListener('change', function (e) {
+    var el = e.target;
+    if (el.classList.contains('unit') || el.dataset.campo === 'desconto') {
+      var n = numeroBR(el.value);
+      el.value = n ? DOCS.formatarValor(n) : '';
+    }
+  });
+  $('formulario').addEventListener('submit', function (e) { e.preventDefault(); });
+
+  $('exemplo').addEventListener('click', function () { preencher(DOCS.exemplo()); });
+  $('limpar').addEventListener('click', function () {
+    var novo = vazio();
+    novo.emissor = estado.dados.emissor;
+    preencher(novo);
+  });
+
+  /* ---------- abas ---------- */
+  var abas = Array.prototype.slice.call(document.querySelectorAll('[role="tab"]'));
+  abas.forEach(function (aba) {
+    aba.addEventListener('click', function () {
+      estado.tipo = aba.dataset.tipo;
+      abas.forEach(function (a) { a.setAttribute('aria-selected', a === aba ? 'true' : 'false'); });
+      atualizar();
+    });
+  });
+
+  /* ---------- preview ---------- */
+  function modeloAtual(comMarcadores) {
+    var d = JSON.parse(JSON.stringify(estado.dados));
+    if (comMarcadores) {
+      if (!d.emissor.nome.trim()) d.emissor.nome = '[Sua empresa]';
+      if (!d.cliente.nome.trim()) d.cliente.nome = '[Cliente]';
+    }
+    d.sequencia = estado.seq[estado.tipo];
+    return DOCS.montar(estado.tipo, d);
+  }
+
+  function atualizar() {
+    var erros = DOCS.validar(estado.dados);
+    var folha = $('folha');
+    var vazioMesmo = !estado.dados.emissor.nome.trim() && !estado.dados.cliente.nome.trim() && !DOCS.totais(estado.dados.itens, 0).itens.length;
+    var m = vazioMesmo ? null : modeloAtual(true);
+    if (vazioMesmo) {
+      folha.className = 'folha vazia';
+      folha.innerHTML = '<p>Preencha o formulário ou use o exemplo.<br>O documento aparece aqui enquanto você digita.</p>';
+    } else {
+      folha.className = 'folha';
+      folha.innerHTML = DOCS.html(m);
+    }
+    $('baixar').disabled = erros.length > 0;
+    $('am-baixar').disabled = erros.length > 0;
+    $('am-numero').textContent = m ? m.titulo + ' · ' + m.numero : 'Preencha os dados do serviço';
+    $('am-total').textContent = m ? 'R$ ' + DOCS.formatarValor(m.total) : '';
+    var aviso = $('aviso');
+    if (erros.length && !vazioMesmo) {
+      aviso.className = 'aviso erro';
+      aviso.textContent = erros[0];
+    } else if (!erros.length) {
+      aviso.className = 'aviso';
+      aviso.textContent = 'Nº ' + modeloAtual(false).numero + ' · a numeração sobe sozinha a cada PDF baixado.';
+    } else {
+      aviso.className = 'aviso';
+      aviso.textContent = '';
+    }
+  }
+
+  /* ---------- PDF ---------- */
+  var temporizadorAviso;
+  $('baixar').addEventListener('click', function () {
+    ler();
+    if (DOCS.validar(estado.dados).length) { atualizar(); return; }
+    var m = modeloAtual(false);
+    try {
+      DOCS.gerarPDF(m, window.jspdf).save(m.arquivo + '-' + m.numero + '.pdf');
+    } catch (e) {
+      var aviso = $('aviso');
+      aviso.className = 'aviso erro';
+      aviso.textContent = 'Não deu para gerar o PDF: ' + (e && e.message ? e.message : e);
+      return;
+    }
+    estado.seq[estado.tipo] = (Number(estado.seq[estado.tipo]) || 1) + 1;
+    guardar('ht-doc-seq', estado.seq);
+    atualizar();
+    var el = $('aviso');
+    el.className = 'aviso ok';
+    el.textContent = m.numero + ' baixado. Se o download não começou, o visualizador está bloqueando — no site funciona. Próximo: ' + modeloAtual(false).numero + '.';
+    clearTimeout(temporizadorAviso);
+    temporizadorAviso = setTimeout(atualizar, 7000);
+  });
+
+  /* ---------- barra fixa do celular ---------- */
+  var lado = document.querySelector('.lado'), vendoFolha = false;
+  if ('IntersectionObserver' in window) {
+    new IntersectionObserver(function (entradas) {
+      vendoFolha = entradas[0].isIntersecting;
+      $('am-ver').textContent = vendoFolha ? 'Editar dados' : 'Ver documento';
+    }, { threshold: 0.2 }).observe(lado);
+  }
+  $('am-ver').addEventListener('click', function () {
+    (vendoFolha ? $('formulario') : lado).scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+  $('am-baixar').addEventListener('click', function () { $('baixar').click(); });
+
+  /* ---------- início ---------- */
+  preencher(estado.dados);
+})();
+</script>
