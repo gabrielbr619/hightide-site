@@ -10,47 +10,126 @@
 <link rel="stylesheet" href="../comum/base.css">
 
 <style>
+  /* ================= formulário: um cartão só ================= */
   /* o formulário ocupa a faixa que nas outras demos é da área de soltar arquivo */
-  .abertura .formulario { grid-area: solta; display: grid; gap: 1rem; margin-top: 0; }
-  .formulario .cabeca { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: .5rem 1rem; }
-  .formulario .cabeca p { font-size: .86rem; color: var(--tinta-mid); }
-  .formulario .btn.mini { padding: .45rem .9rem; font-size: .84rem; }
-  .formulario .linha { grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr)); align-items: end; }
-  .formulario .some { display: flex; align-items: end; }
-  .formulario .campo label { display: grid; gap: .3rem; }
-  .formulario .campo label small { font-size: .84rem; color: var(--tinta-mid); }
-  .apagar { background: none; border: 0; padding: .2rem .3rem; color: var(--tinta-mid); cursor: pointer; font-size: 1.1rem; line-height: 1; }
-  .apagar:hover { color: var(--coral); }
-  .chips { margin-top: .1rem; }
-  .chips button { padding: .32rem .6rem; font-size: .78rem; }
-  .chips .legenda { align-self: center; margin-right: .3rem; font-size: .74rem; color: var(--tinta-mid); }
-  .sem-dias { margin: .1rem 0 0; font-size: .84rem; color: var(--sol); }
-  .acoes { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem 1.2rem; }
+  .abertura .formulario {
+    grid-area: solta; margin-top: 0; display: grid; gap: 1.1rem;
+    padding: 1.1rem 1.3rem 1.3rem; border: 1px solid var(--linha); border-radius: 16px;
+    background: color-mix(in srgb, var(--superficie) 40%, transparent);
+  }
+  .acoes { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem 1rem; }
+  .acoes.fim { padding-top: 1rem; border-top: 1px solid var(--linha); }
   .acoes .aviso { font-size: .88rem; color: var(--sol); }
-  .colar { display: grid; gap: .4rem; }
 
-  /* grade do mês: rola na horizontal de propósito, com a coluna das pessoas fixa */
+  .secao { display: grid; gap: .55rem; }
+  .secao__titulo {
+    margin: 0; font: 600 .78rem/1.4 Archivo, ui-sans-serif, sans-serif;
+    letter-spacing: .05em; text-transform: uppercase; color: var(--ciano);
+  }
+  .rot-campo, .rotulos, .mr {
+    font: 600 .72rem/1.3 "JetBrains Mono", ui-monospace, monospace;
+    letter-spacing: .06em; text-transform: uppercase; color: var(--tinta-mid);
+  }
+  .mes-linha { display: grid; gap: .25rem; }
+  .sub-acoes { display: flex; flex-wrap: wrap; gap: .5rem 1rem; align-items: center; }
+
+  .formulario input, .formulario textarea {
+    width: 100%; padding: .42rem .55rem; border-radius: 8px; border: 1px solid var(--linha-forte);
+    background: color-mix(in srgb, var(--superficie) 60%, transparent);
+    color: var(--tinta); font-size: .9rem; line-height: 1.35;
+  }
+  .formulario input:focus, .formulario textarea:focus { outline: none; border-color: var(--coral); }
+  .formulario input::placeholder, .formulario textarea::placeholder { color: color-mix(in srgb, var(--tinta-mid) 60%, transparent); }
+  .formulario textarea { resize: vertical; min-height: 4rem; }
+  .formulario input[type="number"] { width: 4.5rem; text-align: center; font-variant-numeric: tabular-nums; }
+  .formulario input[type="time"] { width: 6.5rem; }
+  .formulario input[type="date"] { width: 8.5rem; }
+  .formulario input[type="month"] { max-width: 14rem; }
+
+  /* lista compacta: uma linha por turno, uma por pessoa, rótulos só no cabeçalho */
+  .lista { display: grid; }
+  .linha-turno, .linha-pessoa { display: grid; gap: .3rem .5rem; align-items: center; padding: .35rem 0; border-top: 1px solid var(--linha); }
+  /* colunas fixas: com `auto` o cabeçalho de rótulos media diferente das linhas e desalinhava */
+  .linha-turno { grid-template-columns: minmax(0, 1fr) 6.5rem 6.5rem 4.5rem 13rem 2rem; }
+  .linha-pessoa { grid-template-columns: minmax(0, 1fr) 4.5rem 13rem 7.5rem 8.5rem 8.5rem 2rem; }
+  .linha-turno > *, .linha-pessoa > * { min-width: 0; }
+  #colar summary > span:last-child::after { content: "abrir ▾"; }
+  .cel-nome, .cel-inicio, .cel-fim, .cel-vagas, .cel-dias,
+  .cel-max, .cel-folgas, .cel-naofaz, .cel-de, .cel-ate, .cel-x { min-width: 0; }
+  .rotulos { display: grid; border-top: 0; padding: 0 0 .15rem; }
+  .lista .linha-turno:first-of-type, .lista .linha-pessoa:first-of-type { border-top: 0; }
+  .sem-dias { grid-column: 1 / -1; margin: 0; font-size: .8rem; color: var(--sol); }
+  .vazio-lista { padding: .5rem 0; font-size: .86rem; color: var(--tinta-mid); }
+  .cel-sem { font-size: .86rem; color: var(--tinta-mid); }
+  .mr { display: none; }
+
+  .dias, .sigs { display: flex; flex-wrap: wrap; gap: 3px; }
+  .dia, .sig {
+    height: 26px; padding: 0; border: 1px solid var(--linha-forte); background: transparent;
+    color: var(--tinta-mid); font: 600 .74rem/1 Archivo, ui-sans-serif, sans-serif; cursor: pointer;
+  }
+  .dia { width: 26px; border-radius: 50%; }
+  .sig { min-width: 26px; padding: 0 .35rem; border-radius: 999px; }
+  .dia:hover, .sig:hover { border-color: var(--ciano); color: var(--ciano); }
+  .dia[aria-pressed="true"] { background: var(--azul-fundo); border-color: var(--azul-fundo); color: var(--tinta); }
+  .sig[aria-pressed="true"] { background: var(--coral); border-color: var(--coral); color: #FFF4F1; }
+
+  .apagar {
+    width: 2rem; height: 2rem; padding: 0; background: none; border: 0; border-radius: 999px;
+    color: var(--tinta-mid); font-size: 1rem; line-height: 1; cursor: pointer;
+  }
+  .apagar:hover { color: var(--coral); }
+
+  .formulario .mapa { margin-top: 0; }
+  .formulario .mapa label { font: inherit; font-size: .8rem; color: var(--tinta-mid); }
+  .formulario .mapa textarea { margin-top: .3rem; }
+  .regras-grade { display: flex; flex-wrap: wrap; gap: .9rem 1.6rem; padding-top: .2rem; }
+  .regras-grade input[type="number"] { width: 5rem; }
+
+  /* ================= quadro da escala ================= */
+  .quadro { margin-top: .6rem; }
+  .quadro .grupo__cabeca { align-items: flex-start; justify-content: space-between; }
+  .quadro__titulo b { display: block; color: var(--tinta); font-size: 1rem; font-weight: 600; }
+  .quadro__titulo .dica { display: block; margin-top: .2rem; max-width: 48ch; font-size: .84rem; color: var(--tinta-mid); }
+  .legenda-turnos { display: flex; flex-wrap: wrap; gap: .3rem 1rem; font-size: .8rem; color: var(--tinta-mid); }
+  .legenda-turnos span::before { content: ""; display: inline-block; width: 9px; height: 9px; margin-right: .4rem; border-radius: 2px; background: var(--cor); }
+  .quadro .rolagem { margin: 0; padding: 0 0 .3rem; }
+
+  /* a grade rola na horizontal de propósito, com a coluna das pessoas fixa */
   .grade-tabela { table-layout: fixed; width: auto; min-width: 100%; font-size: .86rem; }
-  .grade-tabela th, .grade-tabela td { width: 40px; padding: .28rem .15rem; text-align: center; }
-  .grade-tabela th.canto, .grade-tabela .quem { width: 9.5rem; text-align: left; position: sticky; left: 0; z-index: 2; background: var(--fundo); }
-  .grade-tabela .quem { padding: .28rem .55rem .28rem 0; font-weight: 500; font-size: .84rem; border-bottom: 1px solid var(--linha); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .grade-tabela th, .grade-tabela td { width: 34px; padding: .22rem .12rem; text-align: center; border-bottom: 1px solid var(--linha); }
+  .grade-tabela th.canto, .grade-tabela .quem {
+    width: 9.5rem; text-align: left; padding-left: 1.1rem; padding-right: .5rem;
+    position: sticky; left: 0; z-index: 2; background: color-mix(in srgb, var(--superficie) 38%, var(--fundo));
+  }
+  .grade-tabela .quem { font-weight: 500; font-size: .84rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .grade-tabela thead th { border-bottom: 1px solid var(--linha-forte); white-space: normal; }
-  .grade-tabela thead th i { display: block; font-style: normal; font-size: .64rem; font-weight: 500; color: var(--tinta-mid); }
-  .grade-tabela thead th b { display: block; font-size: .84rem; color: var(--tinta); font-variant-numeric: tabular-nums; }
-  .grade-tabela td { border-bottom: 1px solid var(--linha); }
-  .grade-tabela .fds { background: color-mix(in srgb, var(--superficie) 45%, transparent); }
+  .grade-tabela thead th i { display: block; font-style: normal; font-size: .62rem; font-weight: 500; color: var(--tinta-mid); }
+  .grade-tabela thead th b { display: block; font-size: .82rem; color: var(--tinta); font-variant-numeric: tabular-nums; }
+  .grade-tabela thead th.fds i { color: var(--sol); }
+  .grade-tabela .fds { background: color-mix(in srgb, var(--sol) 8%, transparent); }
   .grade-tabela .vazia { color: var(--linha-forte); }
-  .pino { width: 100%; padding: .22rem 0; border: 1px solid var(--cor); border-radius: 7px; background: color-mix(in srgb, var(--cor) 16%, transparent); color: var(--cor); font: 600 .76rem/1.2 Archivo, sans-serif; cursor: pointer; }
-  .pino:hover { background: color-mix(in srgb, var(--cor) 32%, transparent); }
-  .pino.mudou { outline: 2px solid var(--sol); outline-offset: 1px; }
-  .grade-tabela td.falta { color: var(--coral); font: 600 .66rem/1.15 Archivo, sans-serif; }
-  .grade-tabela tfoot td { padding: .5rem .15rem; font-size: .66rem; line-height: 1.15; font-weight: 600; color: var(--ciano); border-bottom: 0; }
-  .grade-tabela tfoot td.falha { color: var(--coral); }
-  .grade-tabela tfoot .quem { color: var(--tinta-mid); font-weight: 500; }
+  .grade-tabela tbody tr:hover td { background: color-mix(in srgb, var(--superficie) 70%, transparent); }
+  .grade-tabela tbody tr:hover .quem { background: color-mix(in srgb, var(--superficie) 70%, var(--fundo)); }
 
-  .legenda-turnos { display: flex; flex-wrap: wrap; gap: .5rem 1.2rem; margin-top: 1rem; font-size: .84rem; color: var(--tinta-mid); }
-  .legenda-turnos span::before { content: ""; display: inline-block; width: 9px; height: 9px; margin-right: .45rem; border-radius: 2px; background: var(--cor); }
-  .dica { margin-top: .8rem; font-size: .86rem; color: var(--tinta-mid); }
+  /* tinta escura sobre a cor do turno: a mesma célula precisa ser legível no tema claro e no escuro */
+  .pino {
+    display: block; width: 100%; height: 26px; padding: 0; border: 0; border-radius: 6px; position: relative;
+    background: color-mix(in srgb, var(--cor) 55%, #FFFFFF); color: #0B1124;
+    font: 600 .76rem/26px Archivo, ui-sans-serif, sans-serif; cursor: pointer;
+  }
+  .pino:hover { outline: 2px solid var(--ciano); outline-offset: 1px; }
+  .pino.mudou { outline: 2px solid var(--coral); outline-offset: 1px; }
+  .pino.mudou::after { content: ""; position: absolute; top: -3px; right: -3px; width: 7px; height: 7px; border-radius: 50%; background: var(--coral); }
+  .grade-tabela td.falta { color: var(--coral); }
+  .grade-tabela td.falta span { display: block; height: 26px; border: 1px dashed var(--coral); border-radius: 6px; font: 600 .66rem/24px Archivo, ui-sans-serif, sans-serif; }
+
+  .grade-tabela .total { width: 3.6rem; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: .8rem; color: var(--tinta-mid); font-variant-numeric: tabular-nums; }
+  .grade-tabela thead th.total { font-size: .64rem; }
+  .grade-tabela .total.inicio { border-left: 1px solid var(--linha-forte); }
+  .grade-tabela tfoot td { padding: .45rem .12rem; font-size: .64rem; line-height: 1.15; font-weight: 600; color: var(--ciano); border-bottom: 0; }
+  .grade-tabela tfoot td.falha { color: var(--coral); }
+  .grade-tabela tfoot .quem { color: var(--tinta-mid); font-weight: 500; border-bottom: 0; }
 
   .cobre { margin-top: 1.6rem; }
   .cobre ul { margin: 0; padding: 0; list-style: none; display: grid; gap: .35rem; font-size: .92rem; }
@@ -59,8 +138,35 @@
   .cobre li b { font-weight: 600; }
   .cobre .quando { color: var(--tinta-mid); font-size: .86rem; }
 
+  /* ================= responsivo ================= */
+  @media (max-width: 900px) {
+    .rotulos { display: none; }
+    .mr { display: block; margin-bottom: .15rem; font-size: .62rem; }
+    .linha-turno, .linha-pessoa { align-items: end; padding: .6rem 0; }
+    .linha-turno { grid-template-columns: minmax(0, 1fr) 6.5rem 6.5rem 4.5rem; }
+    .linha-turno .cel-dias { grid-column: 1 / 4; }
+    .linha-turno .cel-x { grid-column: 4; justify-self: end; }
+    .linha-pessoa { grid-template-columns: minmax(0, 1fr) 8.5rem 2rem; }
+    .linha-pessoa .cel-folgas, .linha-pessoa .cel-de { grid-column: 1; }
+    .linha-pessoa .cel-naofaz { grid-column: 2 / -1; }
+    .linha-pessoa .cel-ate { grid-column: 2; }
+    .linha-pessoa .cel-x { grid-column: 3; justify-self: end; }
+    .quadro .grupo__cabeca { flex-direction: column; }
+  }
+  @media (hover: none) and (pointer: coarse) {
+    .dia, .sig { height: 30px; }
+    .dia { width: 30px; }
+  }
+  @media (max-width: 560px) {
+    .abertura .formulario { padding: 1rem; }
+    .formulario input[type="time"] { width: 5.4rem; }
+    .formulario input[type="number"] { width: 3.4rem; }
+    .formulario input[type="date"] { width: 100%; }
+    .linha-turno { grid-template-columns: minmax(0, 1fr) 5.4rem 5.4rem 3.4rem; }
+    .linha-pessoa { grid-template-columns: minmax(0, 1fr) 7.5rem 2rem; }
+  }
   @media (max-width: 640px) {
-    .grade-tabela th.canto, .grade-tabela .quem { width: 6.5rem; }
+    .grade-tabela th.canto, .grade-tabela .quem { width: 6.5rem; padding-left: .8rem; }
     .cobre li { grid-template-columns: 1fr; }
   }
 
@@ -75,17 +181,22 @@
       color-scheme: light;
     }
     body { background: #fff; color: #000; }
-    body > header, footer, .fecho, .lida, .ferramentas, .abertura, .cobre, .dica, .descartados { display: none; }
+    body > header, footer, .fecho, .lida, .ferramentas, .abertura, .painel, .cobre, .descartados, .quadro__titulo .dica { display: none; }
     .resultado { padding: 0; animation: none; }
+    .quadro { margin: 0; border: 0; border-radius: 0; background: none; animation: none; }
+    .quadro .grupo__cabeca { padding: 0 0 .5rem; border-bottom: 1px solid #C4C4C4; }
     .rolagem { overflow: visible; margin: 0; padding: 0; }
-    .grade-tabela { width: 100%; min-width: 0; font-size: .7rem; color: #000; }
-    .grade-tabela th, .grade-tabela td { width: auto; color: #000; }
-    .grade-tabela .quem, .grade-tabela th.canto { background: #fff; }
+    .grade-tabela { width: 100%; min-width: 0; font-size: .62rem; color: #000; }
+    .grade-tabela th, .grade-tabela td { width: auto; color: #000; padding: .16rem .06rem; }
+    .grade-tabela .quem, .grade-tabela th.canto { background: #fff; padding-left: 0; }
     .grade-tabela .vazia { color: #9A9A9A; }
     .grade-tabela .fds { background: none; }
-    .pino { border-radius: 4px; border-color: #6B6B6B; background: #fff; color: #000; }
-    .pino.mudou { outline-color: #8A5A00; }
+    .grade-tabela .total { color: #000; }
+    .pino { height: auto; background: #fff; color: #000; border: 1px solid #6B6B6B; border-radius: 4px; line-height: 1.5; }
+    .pino.mudou { outline: 1px solid #8A5A00; }
+    .pino.mudou::after { display: none; }
     .grade-tabela td.falta { color: #B3261E; }
+    .grade-tabela td.falta span { height: auto; border-color: #B3261E; line-height: 1.5; }
     .legenda-turnos { color: #000; }
   }
 </style>
@@ -137,51 +248,68 @@
     </div>
 
     <div class="formulario" id="formulario">
-      <fieldset>
-        <legend>O mês e as regras</legend>
-        <div class="campos dupla">
-          <div class="campo">
-            <label for="mes">Mês da escala</label>
-            <input type="month" id="mes">
-          </div>
-          <div class="campo">
-            <label for="descanso">Descanso mínimo entre turnos (horas)</label>
-            <input type="number" id="descanso" class="num" min="0" max="24" step="1" value="11">
-          </div>
-          <div class="campo">
-            <label for="consecutivos">Máximo de dias seguidos trabalhando</label>
-            <input type="number" id="consecutivos" class="num" min="1" max="31" step="1" value="6">
-          </div>
-        </div>
-      </fieldset>
-
-      <fieldset>
-        <legend>Turnos</legend>
-        <div class="cabeca">
-          <p>Nome, horário, quantas pessoas por turno e em que dias ele acontece.</p>
-          <button class="btn discreto mini" type="button" id="add-turno">Adicionar turno</button>
-        </div>
-        <div id="turnos"></div>
-      </fieldset>
-
-      <fieldset>
-        <legend>Equipe</legend>
-        <div class="cabeca">
-          <p>Folga fixa é o dia da semana em que a pessoa nunca entra. Ausência cobre férias, atestado ou treinamento.</p>
-          <button class="btn discreto mini" type="button" id="add-pessoa">Adicionar pessoa</button>
-        </div>
-        <div id="pessoas"></div>
-        <div class="campo colar">
-          <label for="colar">Ou cole os nomes, um por linha</label>
-          <textarea id="colar" rows="3" placeholder="Ana Prado&#10;Bruno Lima&#10;Carla Nunes"></textarea>
-          <div><button class="btn discreto mini" type="button" id="add-colados">Adicionar essa lista</button></div>
-        </div>
-      </fieldset>
-
       <div class="acoes">
         <button class="btn" type="button" id="gerar">Gerar escala</button>
-        <button class="btn discreto" type="button" id="exemplo">Ver com uma equipe de exemplo</button>
+        <button class="btn discreto" type="button" id="exemplo">Usar equipe de exemplo</button>
         <span class="aviso" id="erro" role="alert" hidden></span>
+      </div>
+
+      <div class="secao">
+        <h2 class="secao__titulo">Mês e turnos</h2>
+        <div class="mes-linha">
+          <label class="rot-campo" for="mes">Mês da escala</label>
+          <input type="month" id="mes">
+        </div>
+        <div class="lista">
+          <div class="rotulos linha-turno" aria-hidden="true">
+            <span>Nome</span><span>Começa</span><span>Termina</span><span>Pessoas</span><span>Dias</span><span></span>
+          </div>
+          <div id="turnos"></div>
+        </div>
+        <div class="sub-acoes">
+          <button class="btn discreto mini" type="button" id="add-turno">Adicionar turno</button>
+        </div>
+      </div>
+
+      <div class="secao">
+        <h2 class="secao__titulo">Equipe</h2>
+        <div class="lista">
+          <div class="rotulos linha-pessoa" aria-hidden="true">
+            <span>Nome</span><span>Máx./sem</span><span>Folga fixa</span><span>Não faz</span><span>Ausente de</span><span>até</span><span></span>
+          </div>
+          <div id="pessoas"></div>
+        </div>
+        <div class="sub-acoes">
+          <button class="btn discreto mini" type="button" id="add-pessoa">Adicionar pessoa</button>
+        </div>
+        <details class="mapa" id="colar">
+          <summary><span>Colar uma lista de nomes</span><span></span></summary>
+          <div class="mapa__corpo">
+            <label for="colar">Um nome por linha</label>
+            <textarea id="colar" rows="3" placeholder="Ana Prado&#10;Bruno Lima&#10;Carla Nunes"></textarea>
+            <div><button class="btn discreto mini" type="button" id="add-colados">Adicionar essa lista</button></div>
+          </div>
+        </details>
+      </div>
+
+      <details class="mapa" id="regras">
+        <summary><span id="regras-resumo"></span><span></span></summary>
+        <div class="mapa__corpo">
+          <div class="regras-grade">
+            <label for="descanso">Descanso entre turnos (horas)
+              <input type="number" id="descanso" min="0" max="24" step="1" value="11">
+            </label>
+            <label for="consecutivos">Máximo de dias seguidos
+              <input type="number" id="consecutivos" min="1" max="31" step="1" value="6">
+            </label>
+          </div>
+        </div>
+      </details>
+
+      <div class="acoes fim">
+        <button class="btn" type="button" id="gerar-fim">Gerar escala</button>
+        <button class="btn discreto" type="button" id="exemplo-fim">Usar equipe de exemplo</button>
+        <span class="aviso" id="erro-fim" aria-hidden="true" hidden></span>
       </div>
     </div>
   </section>
@@ -201,8 +329,6 @@
         </div>
       </div>
 
-      <div class="kpis" id="kpis"></div>
-
       <div class="ferramentas">
         <div class="filtros" role="group" aria-label="Impressão">
           <button type="button" id="imprimir">Imprimir a grade</button>
@@ -215,9 +341,16 @@
         </div>
       </div>
 
-      <div class="rolagem" id="grade"></div>
-      <div class="legenda-turnos" id="legenda"></div>
-      <p class="dica">Clique numa célula para marcar que a pessoa faltou: só as vagas daquele dia são refeitas, e quem cobriu fica destacado.</p>
+      <div class="grupo quadro">
+        <div class="grupo__cabeca">
+          <div class="quadro__titulo">
+            <b id="quadro-titulo"></b>
+            <span class="dica">Clique num turno para simular uma falta — só aquele dia é refeito e quem cobre fica marcado.</span>
+          </div>
+          <div class="legenda-turnos" id="legenda"></div>
+        </div>
+        <div class="rolagem" id="grade"></div>
+      </div>
 
       <div class="grupo cobre" id="falta" hidden>
         <h3>Quem cobre <small id="falta-texto"></small></h3>
@@ -231,22 +364,6 @@
         <summary id="descobertos-titulo"></summary>
         <ul id="descobertos-lista"></ul>
       </details>
-
-      <div class="rolagem">
-        <table id="tabela">
-          <thead>
-            <tr>
-              <th>Pessoa</th>
-              <th class="num">Turnos</th>
-              <th class="num">Noites</th>
-              <th class="num">Fins de semana</th>
-              <th class="num">Dias seguidos</th>
-            </tr>
-          </thead>
-          <tbody id="porpessoa"></tbody>
-          <tfoot><tr><td id="rodape-nota"></td><td class="num" id="rodape-total"></td><td colspan="3"></td></tr></tfoot>
-        </table>
-      </div>
     </div>
 
     <div class="aviso-vazio" id="vazio" hidden></div>
@@ -287,6 +404,9 @@
   function plural(n, um, muitos) { return n + ' ' + (n === 1 ? um : muitos); }
 
   var SEMANA = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+  var LETRA = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
+  var DIA_NOME = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado'];
+  var MES_NOME = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
   var CORES = ['var(--ciano)', 'var(--sol)', 'var(--azul)', 'var(--coral-luz)', 'var(--tinta-mid)'];
   var hoje = COMUM.hojeISO();
 
@@ -308,65 +428,87 @@
     return { id: 'p' + (++contador), nome: nome || '', maxSemana: 6, folgas: [], naoFaz: [], de: '', ate: '' };
   }
 
-  function chips(rotulo, itens, marcados, tipo, indice) {
-    var partes = ['<span class="legenda">' + esc(rotulo) + '</span>'];
-    itens.forEach(function (it) {
-      var ligado = marcados.indexOf(it.valor) >= 0;
-      partes.push('<button type="button" data-chip="' + esc(tipo) + '" data-i="' + indice +
-        '" data-valor="' + esc(it.valor) + '" aria-pressed="' + (ligado ? 'true' : 'false') + '">' +
-        esc(it.rotulo) + '</button>');
+  /* o campo é gerado em lote e o rótulo mora só no cabeçalho: quem lê a tela depende do aria-label indexado */
+  function entrada(tipo, aria, atributos, valor) {
+    return '<input type="' + tipo + '" aria-label="' + esc(aria) + '" ' + atributos +
+      ' value="' + esc(valor) + '">';
+  }
+
+  function celula(classe, rotulo, dentro) {
+    return '<div class="' + classe + '"><i class="mr">' + esc(rotulo) + '</i>' + dentro + '</div>';
+  }
+
+  function togglesDias(marcados, tipo, indice, contexto) {
+    var partes = [];
+    for (var d = 0; d < 7; d++) {
+      var ligado = marcados.indexOf(d) >= 0;
+      partes.push('<button type="button" class="dia" data-chip="' + esc(tipo) + '" data-i="' + indice +
+        '" data-valor="' + d + '" aria-pressed="' + (ligado ? 'true' : 'false') +
+        '" title="' + esc(DIA_NOME[d]) + '" aria-label="' + esc(DIA_NOME[d] + ', ' + contexto) + '">' +
+        LETRA[d] + '</button>');
+    }
+    return '<div class="dias">' + partes.join('') + '</div>';
+  }
+
+  function chipsTurnos(pessoa, indice, siglas) {
+    if (!form.turnos.length) return '<span class="cel-sem">—</span>';
+    var partes = form.turnos.map(function (t) {
+      var nome = COMUM.limpo(t.nome) || 'sem nome';
+      var ligado = pessoa.naoFaz.indexOf(t.id) >= 0;
+      return '<button type="button" class="sig" data-chip="naoFaz" data-i="' + indice +
+        '" data-valor="' + esc(t.id) + '" aria-pressed="' + (ligado ? 'true' : 'false') +
+        '" title="' + esc('Não faz ' + nome) + '" aria-label="' + esc('Não faz ' + nome + ', pessoa ' + (indice + 1)) +
+        '">' + esc(siglas[t.id] || '?') + '</button>';
     });
-    return '<div class="filtros chips larga">' + partes.join('') + '</div>';
-  }
-
-  function diasDaSemana() {
-    return SEMANA.map(function (nome, i) { return { valor: String(i), rotulo: nome }; });
-  }
-
-  /* o campo é gerado em lote: sem <label for>, quem lê a tela precisa do aria-label com o índice */
-  function campo(rotulo, aria, dentro, classe) {
-    return '<div class="campo' + (classe ? ' ' + classe : '') + '"><label><small>' + esc(rotulo) + '</small>' +
-      dentro.replace('<input ', '<input aria-label="' + esc(aria) + '" ') + '</label></div>';
+    return '<div class="sigs">' + partes.join('') + '</div>';
   }
 
   function renderTurnos() {
     $('turnos').innerHTML = form.turnos.map(function (t, i) {
       var n = i + 1;
-      return '<div class="linha">' +
-        campo('Nome', 'Nome do turno ' + n, '<input type="text" data-campo="nome" data-lista="turnos" data-i="' + i + '" value="' + esc(t.nome) + '" placeholder="Manhã">') +
-        campo('Começa', 'Hora em que o turno ' + n + ' começa', '<input type="time" data-campo="inicio" data-lista="turnos" data-i="' + i + '" value="' + esc(t.inicio) + '">') +
-        campo('Termina', 'Hora em que o turno ' + n + ' termina', '<input type="time" data-campo="fim" data-lista="turnos" data-i="' + i + '" value="' + esc(t.fim) + '">') +
-        campo('Pessoas', 'Pessoas por vez no turno ' + n, '<input type="number" class="num" min="0" max="20" data-campo="vagas" data-lista="turnos" data-i="' + i + '" value="' + esc(t.vagas) + '">') +
-        '<div class="some"><button class="apagar" type="button" data-apagar="turnos" data-i="' + i + '" aria-label="Remover o turno ' + n + '">✕</button></div>' +
-        chips('Nos dias', diasDaSemana(), t.dias.map(String), 'dias', i) +
-        '<p class="larga sem-dias" data-sem-dias="' + i + '"' + (t.dias.length ? ' hidden' : '') +
+      var comum = 'data-lista="turnos" data-i="' + i + '"';
+      return '<div class="linha-turno">' +
+        celula('cel-nome', 'Nome', entrada('text', 'Nome do turno ' + n, comum + ' data-campo="nome" placeholder="Manhã"', t.nome)) +
+        celula('cel-inicio', 'Começa', entrada('time', 'Hora em que o turno ' + n + ' começa', comum + ' data-campo="inicio"', t.inicio)) +
+        celula('cel-fim', 'Termina', entrada('time', 'Hora em que o turno ' + n + ' termina', comum + ' data-campo="fim"', t.fim)) +
+        celula('cel-vagas', 'Pessoas', entrada('number', 'Pessoas por vez no turno ' + n, comum + ' data-campo="vagas" min="0" max="20"', t.vagas)) +
+        celula('cel-dias', 'Dias', togglesDias(t.dias, 'dias', i, 'turno ' + n)) +
+        '<div class="cel-x"><button class="apagar" type="button" data-apagar="turnos" data-i="' + i +
+        '" aria-label="Remover o turno ' + n + '">✕</button></div>' +
+        '<p class="sem-dias" data-sem-dias="' + i + '"' + (t.dias.length ? ' hidden' : '') +
         '>Sem nenhum dia marcado, este turno não vai acontecer.</p>' +
         '</div>';
-    }).join('') || '<p class="dica">Nenhum turno ainda. Adicione pelo menos um.</p>';
+    }).join('') || '<p class="vazio-lista">Nenhum turno ainda. Adicione pelo menos um.</p>';
   }
 
   function renderPessoas() {
-    var turnos = form.turnos.map(function (t) {
-      return { valor: t.id, rotulo: COMUM.limpo(t.nome) || 'sem nome' };
-    });
+    var siglas = ESC.siglas(form.turnos);
     $('pessoas').innerHTML = form.pessoas.map(function (p, i) {
       var n = i + 1;
-      return '<div class="linha">' +
-        campo('Nome', 'Nome da pessoa ' + n, '<input type="text" data-campo="nome" data-lista="pessoas" data-i="' + i + '" value="' + esc(p.nome) + '" placeholder="Nome de quem entra na escala">', 'larga') +
-        campo('Máx. por semana', 'Máximo de turnos por semana da pessoa ' + n, '<input type="number" class="num" min="1" max="7" data-campo="maxSemana" data-lista="pessoas" data-i="' + i + '" value="' + esc(p.maxSemana) + '">') +
-        campo('Ausente de', 'Primeiro dia de ausência da pessoa ' + n, '<input type="date" data-campo="de" data-lista="pessoas" data-i="' + i + '" value="' + esc(p.de) + '">') +
-        campo('até', 'Último dia de ausência da pessoa ' + n, '<input type="date" data-campo="ate" data-lista="pessoas" data-i="' + i + '" value="' + esc(p.ate) + '">') +
-        '<div class="some"><button class="apagar" type="button" data-apagar="pessoas" data-i="' + i + '" aria-label="Remover a pessoa ' + n + '">✕</button></div>' +
-        chips('Folga fixa', diasDaSemana(), p.folgas.map(String), 'folgas', i) +
-        (turnos.length ? chips('Não faz', turnos, p.naoFaz, 'naoFaz', i) : '') +
+      var comum = 'data-lista="pessoas" data-i="' + i + '"';
+      return '<div class="linha-pessoa">' +
+        celula('cel-nome', 'Nome', entrada('text', 'Nome da pessoa ' + n, comum + ' data-campo="nome" placeholder="Nome de quem entra na escala"', p.nome)) +
+        celula('cel-max', 'Máx./sem', entrada('number', 'Máximo de turnos por semana da pessoa ' + n, comum + ' data-campo="maxSemana" min="1" max="7"', p.maxSemana)) +
+        celula('cel-folgas', 'Folga fixa', togglesDias(p.folgas, 'folgas', i, 'folga fixa da pessoa ' + n)) +
+        celula('cel-naofaz', 'Não faz', chipsTurnos(p, i, siglas)) +
+        celula('cel-de', 'Ausente de', entrada('date', 'Primeiro dia de ausência da pessoa ' + n, comum + ' data-campo="de"', p.de)) +
+        celula('cel-ate', 'até', entrada('date', 'Último dia de ausência da pessoa ' + n, comum + ' data-campo="ate"', p.ate)) +
+        '<div class="cel-x"><button class="apagar" type="button" data-apagar="pessoas" data-i="' + i +
+        '" aria-label="Remover a pessoa ' + n + '">✕</button></div>' +
         '</div>';
-    }).join('') || '<p class="dica">Nenhuma pessoa ainda. Adicione ou cole a lista abaixo.</p>';
+    }).join('') || '<p class="vazio-lista">Nenhuma pessoa ainda. Adicione uma ou cole a lista de nomes.</p>';
+  }
+
+  function renderRegras() {
+    $('regras-resumo').innerHTML = '<b>Regras:</b> ' +
+      esc(form.descanso + ' h de descanso entre turnos · até ' + plural(form.consecutivos, 'dia seguido', 'dias seguidos'));
   }
 
   function renderForm() {
     $('mes').value = form.mes;
     $('descanso').value = form.descanso;
     $('consecutivos').value = form.consecutivos;
+    renderRegras();
     renderTurnos();
     renderPessoas();
   }
@@ -382,7 +524,7 @@
     var item = form[el.dataset.lista][+el.dataset.i];
     if (!item) return;
     item[el.dataset.campo] = el.type === 'number' ? Math.max(0, Math.floor(Number(el.value) || 0)) : el.value;
-    /* o chip "Não faz" carrega o nome do turno: sem isso ele fica com o nome antigo até o próximo render */
+    /* o chip "Não faz" carrega a sigla do turno: sem isso ele fica com a sigla antiga até o próximo render */
     if (el.dataset.lista === 'turnos' && el.dataset.campo === 'nome') renderPessoas();
   }
 
@@ -437,8 +579,14 @@
   });
 
   $('mes').addEventListener('change', function () { form.mes = this.value; });
-  $('descanso').addEventListener('input', function () { form.descanso = Number(this.value) || 0; });
-  $('consecutivos').addEventListener('input', function () { form.consecutivos = Math.max(1, Number(this.value) || 1); });
+  $('descanso').addEventListener('input', function () {
+    form.descanso = Number(this.value) || 0;
+    renderRegras();
+  });
+  $('consecutivos').addEventListener('input', function () {
+    form.consecutivos = Math.max(1, Number(this.value) || 1);
+    renderRegras();
+  });
 
   $('add-turno').addEventListener('click', function () {
     form.turnos.push(turnoVazio());
@@ -499,9 +647,11 @@
   }
 
   function avisarForm(msg) {
-    var el = $('erro');
-    el.textContent = msg;
-    el.hidden = !msg;
+    ['erro', 'erro-fim'].forEach(function (id) {
+      var el = $(id);
+      el.textContent = msg;
+      el.hidden = !msg;
+    });
   }
 
   function gerar() {
@@ -518,8 +668,12 @@
     mostrar();
   }
 
+  function comExemplo() { formDoExemplo(); gerar(); }
+
   $('gerar').addEventListener('click', gerar);
-  $('exemplo').addEventListener('click', function () { formDoExemplo(); gerar(); });
+  $('gerar-fim').addEventListener('click', gerar);
+  $('exemplo').addEventListener('click', comExemplo);
+  $('exemplo-fim').addEventListener('click', comExemplo);
   $('outra').addEventListener('click', function () { esconderFalta(); HT.voltar(); });
 
   /* ---------- resultado ---------- */
@@ -557,24 +711,41 @@
       $('vazio').textContent = 'Nenhum turno para escalar neste mês. Confira as vagas de cada turno e os dias da semana em que ele acontece.';
     } else {
       renderResumo();
-      renderKpis();
+      renderTitulo();
       renderGrade();
       renderLegenda();
       renderDescobertos();
-      renderPorPessoa();
     }
     HT.mostrarResultado();
+  }
+
+  function faixa(valores) {
+    if (!valores.length) return '';
+    var min = Math.min.apply(null, valores), max = Math.max.apply(null, valores);
+    return min === max ? String(min) : 'entre ' + min + ' e ' + max;
+  }
+
+  function equilibrio() {
+    var cfg = estado.config, r = estado.resultado;
+    var podeNoite = cfg.pessoas.filter(function (p) {
+      return cfg.turnos.some(function (t) { return ESC.ehNoite(t) && p.naoFaz.indexOf(t.id) < 0; });
+    });
+    var noites = podeNoite.map(function (p) { return r.porPessoa[p.id].noites; });
+    var fds = cfg.pessoas.map(function (p) { return r.porPessoa[p.id].fds; });
+    var texto = noites.length ? 'Noites ' + faixa(noites) + ' por pessoa' : 'Ninguém faz noite';
+    if (fds.length) texto += ', fins de semana ' + faixa(fds);
+    texto += '.';
+    if (r.descobertos.length) {
+      texto += ' ' + plural(r.descobertos.length, 'turno ficou descoberto', 'turnos ficaram descobertos') + ' — veja abaixo.';
+    }
+    return texto;
   }
 
   function renderResumo() {
     var r = estado.resultado;
     var faltando = r.cobertura.vagas - r.cobertura.preenchidas;
     $('resumo').innerHTML = '<span class="valor">' + esc(r.cobertura.pct.toFixed(0) + '% coberto') + '</span> em ' +
-      esc(plural(r.cobertura.vagas, 'turno do mês', 'turnos do mês')) + '.<small>' +
-      esc(faltando
-        ? plural(faltando, 'vaga ficou sem ninguém', 'vagas ficaram sem ninguém') + ' — o motivo de cada uma está logo abaixo da grade.'
-        : 'Todas as vagas fecharam respeitando folga fixa, descanso mínimo e limite de dias seguidos.') +
-      '</small>';
+      esc(plural(r.cobertura.vagas, 'turno do mês', 'turnos do mês')) + '.<small>' + esc(equilibrio()) + '</small>';
 
     var cor = coresPorTurno();
     var faixas = estado.config.turnos.map(function (t) {
@@ -595,30 +766,10 @@
     }).join('');
   }
 
-  function faixa(valores) {
-    if (!valores.length) return '0';
-    var min = Math.min.apply(null, valores), max = Math.max.apply(null, valores);
-    return min === max ? String(min) : min + '–' + max;
-  }
-
-  function renderKpis() {
-    var cfg = estado.config, r = estado.resultado;
-    var podeNoite = cfg.pessoas.filter(function (p) {
-      return cfg.turnos.some(function (t) { return ESC.ehNoite(t) && p.naoFaz.indexOf(t.id) < 0; });
-    });
-    var noites = podeNoite.map(function (p) { return r.porPessoa[p.id].noites; });
-    var fds = cfg.pessoas.map(function (p) { return r.porPessoa[p.id].fds; });
-    var descobertas = r.cobertura.vagas - r.cobertura.preenchidas;
-
-    var itens = [
-      ['Cobertura', r.cobertura.pct.toFixed(0) + '%', plural(r.cobertura.preenchidas, 'vaga preenchida', 'vagas preenchidas')],
-      ['Turnos descobertos', String(descobertas), descobertas ? 'precisam de alguém' : 'nenhum buraco na escala'],
-      ['Noites por pessoa', faixa(noites), noites.length ? 'entre quem faz noite' : 'ninguém faz noite'],
-      ['Fins de semana por pessoa', faixa(fds), 'sábados e domingos escalados']
-    ];
-    $('kpis').innerHTML = itens.map(function (k) {
-      return '<div class="kpi">' + esc(k[0]) + '<b>' + esc(k[1]) + '</b><small>' + esc(k[2]) + '</small></div>';
-    }).join('');
+  function renderTitulo() {
+    var mes = estado.config.mes;
+    var numero = +mes.slice(5, 7);
+    $('quadro-titulo').textContent = 'Escala de ' + (MES_NOME[numero - 1] || mes) + ' de ' + mes.slice(0, 4);
   }
 
   function mudou(dia, pessoaId) {
@@ -654,22 +805,28 @@
     var cabeca = '<tr><th class="canto" scope="col">Pessoa</th>' + dias.map(function (dia, i) {
       return '<th scope="col" class="' + (fimDeSemana[i] ? 'fds' : '') + '"><i>' +
         esc(SEMANA[COMUM.diaSemana(dia)]) + '</i><b>' + esc(dia.slice(8)) + '</b></th>';
-    }).join('') + '</tr>';
+    }).join('') +
+      '<th scope="col" class="total inicio">Turnos</th><th scope="col" class="total">Noites</th><th scope="col" class="total">FDS</th></tr>';
 
     var corpo = cfg.pessoas.map(function (p) {
+      var e = r.porPessoa[p.id];
       return '<tr><th class="quem" scope="row" title="' + esc(p.nome) + '">' + esc(p.nome) + '</th>' +
         dias.map(function (dia, i) {
           var turnoId = onde[dia][p.id];
           var classe = fimDeSemana[i] ? 'fds' : '';
           if (faltou(dia, p.id)) {
-            return '<td class="falta ' + classe + '" title="' + esc(p.nome + ' faltou em ' + COMUM.formatarData(dia)) + '">falta</td>';
+            return '<td class="falta ' + classe + '" title="' + esc(p.nome + ' faltou em ' + COMUM.formatarData(dia)) + '"><span>falta</span></td>';
           }
           if (!turnoId) return '<td class="vazia ' + classe + '">·</td>';
           return '<td class="' + classe + '"><button type="button" class="pino' + (mudou(dia, p.id) ? ' mudou' : '') +
             '" style="--cor:' + cor[turnoId] + '" data-dia="' + esc(dia) + '" data-pessoa="' + esc(p.id) +
             '" title="' + esc(nomeTurno[turnoId] + ' em ' + COMUM.formatarData(dia) + ' — clique para marcar falta') +
             '">' + esc(siglas[turnoId]) + '</button></td>';
-        }).join('') + '</tr>';
+        }).join('') +
+        '<td class="total inicio">' + esc(String(e.turnos)) + '</td>' +
+        '<td class="total">' + esc(String(e.noites)) + '</td>' +
+        '<td class="total">' + esc(String(e.fds)) + '</td>' +
+        '</tr>';
     }).join('');
 
     var faltam = faltamPorDia();
@@ -677,7 +834,7 @@
       var n = faltam[dia] || 0;
       return '<td class="' + (fimDeSemana[i] ? 'fds ' : '') + (n ? 'falha' : '') + '">' +
         (n ? esc('faltam ' + n) : '✓') + '</td>';
-    }).join('') + '</tr>';
+    }).join('') + '<td class="total inicio"></td><td class="total"></td><td class="total"></td></tr>';
 
     $('grade').innerHTML = '<table class="fixa grade-tabela"><thead>' + cabeca + '</thead><tbody>' +
       corpo + '</tbody><tfoot>' + rodape + '</tfoot></table>';
@@ -709,23 +866,6 @@
       return '<li><span>' + esc(COMUM.formatarData(d.dia) + ' · ' + (nomeTurno[d.turnoId] || d.turnoId) +
         ' · ' + plural(d.faltam, 'vaga', 'vagas')) + '</span><span>' + esc(d.motivo) + '</span></li>';
     }).join('');
-  }
-
-  function renderPorPessoa() {
-    var cfg = estado.config, r = estado.resultado;
-    $('porpessoa').innerHTML = cfg.pessoas.map(function (p, i) {
-      var e = r.porPessoa[p.id];
-      var folgas = p.folgas.map(function (d) { return SEMANA[d]; }).join(', ');
-      return '<tr class="linha" style="--i:' + i + '">' +
-        '<td class="titulo">' + esc(p.nome) + '<small>' + esc(folgas ? 'folga fixa: ' + folgas : 'sem folga fixa') + '</small></td>' +
-        '<td class="num"><span class="rot">Turnos</span>' + esc(String(e.turnos)) + '</td>' +
-        '<td class="num"><span class="rot">Noites</span>' + esc(String(e.noites)) + '</td>' +
-        '<td class="num"><span class="rot">Fins de semana</span>' + esc(String(e.fds)) + '</td>' +
-        '<td class="num"><span class="rot">Dias seguidos</span>' + esc(String(e.consecutivosMax)) + '</td>' +
-        '</tr>';
-    }).join('');
-    $('rodape-nota').textContent = plural(cfg.pessoas.length, 'pessoa na escala', 'pessoas na escala');
-    $('rodape-total').textContent = String(r.cobertura.preenchidas);
   }
 
   /* ---------- falta ---------- */
@@ -764,10 +904,8 @@
     $('falta').hidden = false;
 
     renderResumo();
-    renderKpis();
     renderGrade();
     renderDescobertos();
-    renderPorPessoa();
     $('falta').scrollIntoView({ block: 'center', behavior: 'smooth' });
   }
 
@@ -781,10 +919,8 @@
     estado.resultado = estado.original.resultado;
     esconderFalta();
     renderResumo();
-    renderKpis();
     renderGrade();
     renderDescobertos();
-    renderPorPessoa();
   });
 
   /* ---------- exportar ---------- */
