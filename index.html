@@ -202,15 +202,17 @@
   h1 em { font-style: normal; color: var(--coral); }
 
   .lead { margin-top: 1.9rem; font-size: 1.16rem; color: var(--tinta-mid); max-width: 54ch; }
+  .lead em { font-style: normal; font-weight: 600; color: var(--tinta); box-shadow: inset 0 -.45em 0 color-mix(in srgb, var(--coral) 22%, transparent); }
   .acoes { margin-top: 2.4rem; display: flex; flex-wrap: wrap; align-items: center; gap: 1.5rem; }
   .acoes .btn { padding: .95rem 1.75rem; font-size: 1.02rem; }
   .link-desce { display: inline-flex; align-items: center; gap: .6rem; text-decoration: none; font-weight: 600; color: var(--tinta); }
   .link-desce i { display: block; width: 30px; height: 1px; background: var(--ciano); transition: width .3s cubic-bezier(.2,.7,.3,1); }
   .link-desce:hover i { width: 48px; }
 
-  .regua { margin-top: 4.5rem; border-top: 1px solid var(--linha-forte); display: grid; grid-template-columns: repeat(3, 1fr); }
-  .regua div { padding: 1.05rem 1.4rem 0 0; position: relative; font-size: .95rem; color: var(--tinta-mid); }
-  .regua b { display: block; color: var(--tinta); font-weight: 600; font-size: 1.02rem; }
+  .regua { margin-top: 4.5rem; border-top: 1px solid var(--linha-forte); display: grid; grid-template-columns: repeat(4, 1fr); gap: 0 1.2rem; }
+  .regua div { padding: 1.5rem 1.2rem 0 0; position: relative; font-size: .95rem; line-height: 1.5; color: var(--tinta-mid); }
+  .regua div::before { content: ""; position: absolute; top: -1px; left: 0; width: 2.6rem; height: 3px; background: var(--coral); }
+  .regua b { display: block; margin-bottom: .5rem; color: var(--tinta); font-family: "Bricolage Grotesque", Archivo, sans-serif; font-weight: 800; letter-spacing: -0.02em; font-size: clamp(1.35rem, 2.4vw, 1.72rem); line-height: 1.1; }
 
   /* ================= seções ================= */
   section { padding: 7rem 0; position: relative; }
@@ -248,7 +250,7 @@
   .frente:hover::before { opacity: 1; }
   .frente h3 { font-size: clamp(1.35rem, 2.6vw, 1.9rem); }
   .frente p { color: var(--tinta-mid); }
-  .ganho { display: block; margin-top: .7rem; font: 600 .82rem/1.5 "JetBrains Mono", monospace; letter-spacing: .02em; color: var(--ciano); }
+  .ganho { display: inline-block; margin-top: 1.1rem; padding: .42rem .8rem; border: 1px solid color-mix(in srgb, var(--ciano) 45%, transparent); border-radius: 999px; background: color-mix(in srgb, var(--ciano) 12%, transparent); font: 700 .78rem/1.4 "JetBrains Mono", monospace; letter-spacing: .04em; text-transform: uppercase; color: var(--ciano); }
 
   /* sinais */
   .sinais { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 4rem; }
@@ -303,16 +305,15 @@
   .caso header { display: flex; flex-wrap: wrap; align-items: baseline; gap: .4rem 1rem; margin-bottom: 1.4rem; }
   .caso h3 { font-size: 1.42rem; }
   .setor { font: 500 .82rem/1 "JetBrains Mono", monospace; color: var(--tinta-mid); }
-  .setor.vivo { color: var(--ciano); }
   .grupo-rotulo { margin: 0 0 1rem; font: 600 .74rem/1.3 "JetBrains Mono", monospace; letter-spacing: .07em; text-transform: uppercase; color: var(--tinta-mid); }
-  .casos + .grupo-rotulo { margin-top: 3.5rem; }
+  .casos + .grupo-rotulo, .experiencia + .grupo-rotulo { margin-top: 3.5rem; }
+  .experiencia { max-width: 62ch; margin: 0; padding-left: 1.1rem; border-left: 2px solid var(--coral); font-size: 1.08rem; line-height: 1.65; color: var(--tinta-mid); }
   .caso dl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.8rem; margin: 0; }
   .caso dt { font: 600 .74rem/1 "JetBrains Mono", monospace; letter-spacing: .06em; text-transform: uppercase; color: var(--coral); margin-bottom: .55rem; }
   .caso dl > div:nth-child(2) dt { color: var(--azul); }
   .caso dl > div:nth-child(3) dt { color: var(--ciano); }
   .caso dd { margin: 0; color: var(--tinta-mid); font-size: .98rem; line-height: 1.55; }
   .caso dl > div:nth-child(3) dd { color: var(--tinta); }
-  .pilha { margin-top: 1.6rem; padding-top: 1.1rem; border-top: 1px solid var(--linha); font: 500 .78rem/1.7 "JetBrains Mono", monospace; color: var(--tinta-mid); }
 
   /* cta */
   .cta { position: relative; overflow: hidden; background: var(--fundo-2); padding: 8rem 0; }
@@ -438,12 +439,14 @@
     .sinais { grid-template-columns: 1fr; }
     .conta { grid-template-columns: 1fr; gap: 2.5rem; }
     form.fala .dupla { grid-template-columns: 1fr; }
-    .regua { grid-template-columns: 1fr; }
-    .regua div { padding: .9rem 0 .3rem 1rem; }
-    .regua div + div { border-top: 1px solid var(--linha); }
+    .regua { grid-template-columns: repeat(2, 1fr); gap: 0 1rem; }
+    .regua div { padding: 1.2rem 1rem 0 0; }
+    .regua b { font-size: 1.28rem; }
     section { padding: 4.8rem 0; }
   }
   @media (max-width: 640px) {
+    .regua { grid-template-columns: 1fr; }
+    .regua div { padding: 1.1rem 0 .2rem; }
     .barra { gap: .8rem; }
     .marca img { height: 32px; }
     nav { gap: .6rem; }
@@ -496,9 +499,9 @@
       </h1>
 
       <p class="lead">
-        A High Tide mapeia o processo que hoje consome as horas da sua equipe,
-        automatiza o que dá para automatizar e entrega o sistema rodando na
-        infraestrutura da sua empresa.
+        A gente entende como a sua empresa trabalha hoje, <em>identifica onde estão
+        os gargalos</em> e entrega o sistema rodando na infraestrutura da sua empresa —
+        principalmente onde há planilha, dado sensível e processo espalhado.
       </p>
 
       <div class="acoes">
@@ -508,8 +511,9 @@
 
       <div class="regua">
         <div><b>Redução de custos</b>A hora que hoje vai em trabalho repetido volta para o caixa</div>
-        <div><b>Produtividade</b>A mesma equipe entrega mais, sem trabalhar mais</div>
-        <div><b>Controle</b>Um número só, atualizado sozinho, igual para todo mundo</div>
+        <div><b>Eficiência</b>O processo acelera e para de depender de alguém lembrar</div>
+        <div><b>Concentração</b>Tudo numa tela só, no lugar de planilha, sistema e e-mail separados</div>
+        <div><b>Mais controle</b>Um número só, atualizado sozinho, igual para todo mundo</div>
       </div>
     </div>
   </section>
@@ -632,6 +636,7 @@
         <div class="sinal">O mesmo cadastro é digitado em dois sistemas diferentes.<br><a href="demos/duplicados/index.html">Ver a amostra: caça-duplicados</a></div>
         <div class="sinal">O fechamento do mês trava um dia inteiro de alguém.<br><a href="demos/conciliador/index.html">Ver a amostra: conciliador bancário</a></div>
         <div class="sinal">Quando essa pessoa falta, o processo para.<br><a href="demos/escala/index.html">Ver a amostra: gerador de escala</a></div>
+        <div class="sinal">Cada área guarda a sua parte num lugar diferente — planilha, sistema, e-mail — e ninguém enxerga o todo.<br><a href="demos/auditor/index.html">Ver a amostra: auditor de cadastro</a></div>
       </div>
 
       <p class="fecho surge">
@@ -795,37 +800,10 @@
     <div class="env">
       <div class="cabeca surge">
         <h2>O que já construímos</h2>
-        <p>Cinco sistemas inteiros, do banco à tela. Dois rodam todo dia dentro de empresas; três são produtos nossos, construídos do zero — e é neles que mostramos, ao vivo e com tela compartilhada, como a gente trabalha.</p>
+        <p>Sistemas inteiros, do banco de dados à tela. Parte da nossa experiência vem de sistemas que rodam todo dia dentro de empresas; o que mostramos aqui são os produtos que construímos do zero — e é neles que abrimos o código e a tela, ao vivo, para você ver como a gente trabalha.</p>
       </div>
 
-      <p class="grupo-rotulo surge">Em uso todo dia dentro de empresas</p>
-      <div class="casos">
-        <article class="caso surge" style="--i:0">
-          <header>
-            <h3>Gestão industrial</h3>
-            <span class="setor vivo">Em uso diário · indústria</span>
-          </header>
-          <dl>
-            <div><dt>O problema</dt><dd>Apontamento de produção no papel, digitado depois por outra pessoa. O número do chão de fábrica chegava à gestão com dias de atraso.</dd></div>
-            <div><dt>O que construímos</dt><dd>Módulos de pessoas, produção e apontamento de fábrica ligados à base da empresa, com registro no momento em que a coisa acontece.</dd></div>
-            <div><dt>O que mudou</dt><dd>A digitação em duplicata acabou e o relatório de produção deixou de ser uma tarefa — passou a ser uma tela que a gestão abre quando quer.</dd></div>
-          </dl>
-          <div class="pilha">React · TypeScript · Go · SQL</div>
-        </article>
-
-        <article class="caso surge" style="--i:1">
-          <header>
-            <h3>Plataformas para gestoras de investimento</h3>
-            <span class="setor vivo">Em uso diário · mercado financeiro</span>
-          </header>
-          <dl>
-            <div><dt>O problema</dt><dd>Carteira e posição fechadas em planilhas, com regra de cálculo na cabeça de quem monta. Erro só aparecia quando o cliente perguntava.</dd></div>
-            <div><dt>O que construímos</dt><dd>Sistemas de gestão e relatório com as regras do setor dentro do código, conferência automática e trilha de tudo que foi calculado.</dd></div>
-            <div><dt>O que mudou</dt><dd>O relatório sai igual toda vez, e dá para responder de onde veio cada número.</dd></div>
-          </dl>
-          <div class="pilha">React · Node.js · SQL</div>
-        </article>
-      </div>
+      <p class="experiencia surge">Somos engenheiros de software com anos de operação real: sistemas de gestão em uso diário, processos críticos que não podem parar e dados sensíveis que precisam de trilha e controle de acesso. É essa experiência que entra no seu projeto — não um roteiro de agência.</p>
 
       <p class="grupo-rotulo surge">Produtos nossos, construídos do zero</p>
       <div class="vitrine surge">
@@ -854,7 +832,6 @@
             <div><dt>O que construímos</dt><dd>Plataforma multiempresa: agenda de todos os profissionais, prontuário, financeiro, chat interno, portal do paciente e cobrança recorrente pelo Stripe.</dd></div>
             <div><dt>O que ela faz</dt><dd>Ocupação, faturamento e faltas em tela, atualizados sozinhos. O paciente marca pelo portal e a confirmação entra direto na agenda. As telas acima são deste sistema.</dd></div>
           </dl>
-          <div class="pilha">Next.js · Node.js · PostgreSQL · Redis · Stripe</div>
         </article>
 
         <article class="caso surge" style="--i:1">
@@ -867,7 +844,6 @@
             <div><dt>O que construímos</dt><dd>Coleta automática de mais de 15 portais, com padronização de endereço, área e preço num banco único e busca sobre o conjunto todo.</dd></div>
             <div><dt>O que ela faz</dt><dd>Uma busca no lugar de quinze. O mesmo imóvel anunciado em portais diferentes aparece uma vez só, com o histórico de preço junto.</dd></div>
           </dl>
-          <div class="pilha">Python · Node.js · PostgreSQL · Next.js</div>
         </article>
 
         <article class="caso surge" style="--i:2">
@@ -880,11 +856,10 @@
             <div><dt>O que construímos</dt><dd>Página pública por profissional com os horários livres, agendamento pelo próprio paciente e confirmação automática.</dd></div>
             <div><dt>O que ela faz</dt><dd>O horário é preenchido sem ninguém do outro lado. A agenda deixa de depender de quem responde a mensagem.</dd></div>
           </dl>
-          <div class="pilha">Next.js · React · TypeScript · Supabase</div>
         </article>
       </div>
 
-      <p class="fecho surge"><strong>Todos os cinco rodam, e a gente abre o sistema de verdade na primeira call</strong>, tela compartilhada, sem slide. Se preferir ver antes de falar com alguém, <a href="#amostras">as nove amostras rodam agora no seu navegador</a>.</p>
+      <p class="fecho surge"><strong>Todos rodam, e a gente abre o sistema de verdade na primeira call</strong>, tela compartilhada, sem slide. Se preferir ver antes de falar com alguém, <a href="#amostras">as nove amostras rodam agora no seu navegador</a>.</p>
     </div>
   </section>
 
